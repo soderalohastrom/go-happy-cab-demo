@@ -1,4 +1,13 @@
 import { useState, useMemo } from 'react';
+import {
+  DndContext,
+  closestCenter,
+  PointerSensor,
+  TouchSensor,
+  useSensor,
+  useSensors,
+} from '@dnd-kit/core';
+import { CSS } from '@dnd-kit/utilities';
 import './index.css';
 
 function PairingUI() {
@@ -45,8 +54,16 @@ function PairingUI() {
     },
   });
 
-  const [dragging, setDragging] = useState(null);
-  const [dragSource, setDragSource] = useState(null);
+  const [activeId, setActiveId] = useState(null);
+
+  const sensors = useSensors(
+    useSensor(TouchSensor, {
+      distance: 8,
+    }),
+    useSensor(PointerSensor, {
+      distance: 8,
+    })
+  );
 
   const currentData = state[activeTab];
 
@@ -69,86 +86,80 @@ function PairingUI() {
     }
   }, [currentData.paired, sortBy]);
 
-  const handleDragStart = (e, type, item) => {
-    setDragging(item);
-    setDragSource(type);
-    e.dataTransfer.effectAllowed = 'move';
-    
-    // Create drag image with grab cursor
-    const dragImage = document.createElement('div');
-    dragImage.innerHTML = '✋';
-    dragImage.style.position = 'absolute';
-    dragImage.style.top = '-1000px';
-    dragImage.style.fontSize = '24px';
-    document.body.appendChild(dragImage);
-    e.dataTransfer.setDragImage(dragImage, 0, 0);
+  const handleDragStart = (event) => {
+    setActiveId(event.active.id);
   };
 
-  const handleDragOver = (e) => {
-    e.preventDefault();
-    e.dataTransfer.dropEffect = 'move';
-  };
+  const handleDragEnd = (event) => {
+    const { active, over } = event;
+    setActiveId(null);
 
-  const handleDropOnDriver = (e, driver) => {
-    e.preventDefault();
-    if (!dragging || dragSource !== 'child') return;
+    if (!over) return;
 
-    const updatedUnpaired = {
-      ...currentData.unpaired,
-      children: currentData.unpaired.children.filter(c => c.id !== dragging.id),
-      drivers: currentData.unpaired.drivers.filter(d => d.id !== driver.id),
-    };
+    const [type, id] = active.id.toString().split('-');
+    const [overType, overId] = over.id.toString().split('-');
 
-    const newPairing = {
-      id: `p-${activeTab}-${Date.now()}`,
-      childId: dragging.id,
-      childName: dragging.name,
-      driverId: driver.id,
-      driverName: driver.name,
-    };
+    // Child dragged onto Driver
+    if (type === 'child' && overType === 'driver') {
+      const child = currentData.unpaired.children.find(c => c.id === id);
+      const driver = currentData.unpaired.drivers.find(d => d.id === overId);
+      
+      if (child && driver) {
+        const updatedUnpaired = {
+          ...currentData.unpaired,
+          children: currentData.unpaired.children.filter(c => c.id !== id),
+          drivers: currentData.unpaired.drivers.filter(d => d.id !== overId),
+        };
 
-    setState({
-      ...state,
-      [activeTab]: {
-        ...currentData,
-        paired: [...currentData.paired, newPairing],
-        unpaired: updatedUnpaired,
-      },
-    });
+        const newPairing = {
+          id: `p-${activeTab}-${Date.now()}`,
+          childId: child.id,
+          childName: child.name,
+          driverId: driver.id,
+          driverName: driver.name,
+        };
 
-    setDragging(null);
-    setDragSource(null);
-  };
+        setState({
+          ...state,
+          [activeTab]: {
+            ...currentData,
+            paired: [...currentData.paired, newPairing],
+            unpaired: updatedUnpaired,
+          },
+        });
+      }
+    }
 
-  const handleDropOnUnpairedChild = (e, child) => {
-    e.preventDefault();
-    if (!dragging || dragSource !== 'driver') return;
+    // Driver dragged onto Child
+    if (type === 'driver' && overType === 'child') {
+      const driver = currentData.unpaired.drivers.find(d => d.id === id);
+      const child = currentData.unpaired.children.find(c => c.id === overId);
+      
+      if (driver && child) {
+        const updatedUnpaired = {
+          ...currentData.unpaired,
+          children: currentData.unpaired.children.filter(c => c.id !== overId),
+          drivers: currentData.unpaired.drivers.filter(d => d.id !== id),
+        };
 
-    const updatedUnpaired = {
-      ...currentData.unpaired,
-      children: currentData.unpaired.children.filter(c => c.id !== child.id),
-      drivers: currentData.unpaired.drivers.filter(d => d.id !== dragging.id),
-    };
+        const newPairing = {
+          id: `p-${activeTab}-${Date.now()}`,
+          childId: child.id,
+          childName: child.name,
+          driverId: driver.id,
+          driverName: driver.name,
+        };
 
-    const newPairing = {
-      id: `p-${activeTab}-${Date.now()}`,
-      childId: child.id,
-      childName: child.name,
-      driverId: dragging.id,
-      driverName: dragging.name,
-    };
-
-    setState({
-      ...state,
-      [activeTab]: {
-        ...currentData,
-        paired: [...currentData.paired, newPairing],
-        unpaired: updatedUnpaired,
-      },
-    });
-
-    setDragging(null);
-    setDragSource(null);
+        setState({
+          ...state,
+          [activeTab]: {
+            ...currentData,
+            paired: [...currentData.paired, newPairing],
+            unpaired: updatedUnpaired,
+          },
+        });
+      }
+    }
   };
 
   const handleUnpair = (pairing) => {
@@ -176,188 +187,202 @@ function PairingUI() {
     });
   };
 
+  const DraggableChild = ({ child }) => (
+    <div
+      id={`child-${child.id}`}
+      className={`bg-rose-50 border-2 border-rose-300 p-3 rounded-lg cursor-move transition touch-none select-none ${
+        activeId === `child-${child.id}`
+          ? 'opacity-50 scale-95 bg-rose-100 shadow-lg'
+          : 'hover:bg-rose-100 hover:shadow-md'
+      }`}
+    >
+      <div className="font-semibold text-rose-900">↕️ {child.name}</div>
+      <div className="text-xs text-rose-700 mt-1">📍 Needs driver</div>
+    </div>
+  );
+
+  const DraggableDriver = ({ driver }) => (
+    <div
+      id={`driver-${driver.id}`}
+      className={`bg-blue-50 border-2 border-blue-300 p-3 rounded-lg cursor-move transition touch-none select-none ${
+        activeId === `driver-${driver.id}`
+          ? 'opacity-50 scale-95 bg-blue-100 shadow-lg'
+          : 'hover:bg-blue-100 hover:shadow-md'
+      }`}
+    >
+      <div className="font-semibold text-blue-900">↕️ {driver.name}</div>
+      <div className="text-xs text-blue-700 mt-1">🚕 Available</div>
+    </div>
+  );
+
+  const DroppableZone = ({ id, children }) => (
+    <div id={id} className="space-y-3">
+      {children}
+    </div>
+  );
+
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-50 p-4">
-      <div className="max-w-7xl mx-auto">
-        
-        {/* Header */}
-        <div className="mb-8">
-          <h1 className="text-4xl font-bold text-gray-900 mb-2">
-            ⏱️ Go Happy Cab - Daily Route Manager
-          </h1>
-          <p className="text-gray-600">Manage AM and PM route pairings. Drag unpaired children to drivers or vice versa.</p>
-        </div>
-
-        {/* Tab Navigation */}
-        <div className="flex gap-4 mb-8">
-          {['AM', 'PM'].map(tab => (
-            <button
-              key={tab}
-              onClick={() => setActiveTab(tab)}
-              className={`px-6 py-3 rounded-lg font-bold text-lg transition ${
-                activeTab === tab
-                  ? 'bg-indigo-600 text-white shadow-lg'
-                  : 'bg-white text-gray-700 border-2 border-gray-200 hover:border-indigo-400'
-              }`}
-            >
-              {tab} Routes
-            </button>
-          ))}
-        </div>
-
-        {/* Main Layout */}
-        <div className="space-y-6">
+    <DndContext
+      sensors={sensors}
+      collisionDetection={closestCenter}
+      onDragStart={handleDragStart}
+      onDragEnd={handleDragEnd}
+    >
+      <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-50 p-4">
+        <div className="max-w-7xl mx-auto">
           
-          {/* Top Row: Children & Drivers */}
-          <div className="grid grid-cols-2 gap-6">
-            
-            {/* LEFT: Unpaired Children */}
-            <div className="bg-white rounded-lg shadow-md p-6">
-              <h2 className="text-xl font-bold text-gray-800 mb-4">
-                Unassigned Children ({sortedUnpairedChildren.length})
-              </h2>
-              <p className="text-xs text-gray-500 mb-4">Sorted alphabetically</p>
-              <div className="space-y-3">
-                {sortedUnpairedChildren.length === 0 ? (
-                  <p className="text-gray-400 text-sm italic">All children assigned! 🎉</p>
-                ) : (
-                  sortedUnpairedChildren.map(child => (
-                    <div
-                      key={child.id}
-                      draggable
-                      onDragStart={(e) => handleDragStart(e, 'child', child)}
-                      onDragOver={handleDragOver}
-                      onDrop={(e) => handleDropOnUnpairedChild(e, child)}
-                      className={`bg-rose-50 border-2 border-rose-300 p-3 rounded-lg cursor-move transition ${
-                        dragging?.id === child.id
-                          ? 'opacity-50 scale-95 bg-rose-100'
-                          : 'hover:bg-rose-100 hover:shadow-md'
-                      }`}
-                    >
-                      <div className="font-semibold text-rose-900">↕️ {child.name}</div>
-                      <div className="text-xs text-rose-700 mt-1">📍 Needs driver</div>
-                    </div>
-                  ))
-                )}
-              </div>
-            </div>
-
-            {/* RIGHT: Unpaired Drivers */}
-            <div className="bg-white rounded-lg shadow-md p-6">
-              <h2 className="text-xl font-bold text-gray-800 mb-4">
-                Unassigned Drivers ({sortedUnpairedDrivers.length})
-              </h2>
-              <p className="text-xs text-gray-500 mb-4">Sorted alphabetically</p>
-              <div className="space-y-3">
-                {sortedUnpairedDrivers.length === 0 ? (
-                  <p className="text-gray-400 text-sm italic">All drivers assigned! 🎉</p>
-                ) : (
-                  sortedUnpairedDrivers.map(driver => (
-                    <div
-                      key={driver.id}
-                      draggable
-                      onDragStart={(e) => handleDragStart(e, 'driver', driver)}
-                      onDragOver={handleDragOver}
-                      onDrop={(e) => handleDropOnDriver(e, driver)}
-                      className={`bg-blue-50 border-2 border-blue-300 p-3 rounded-lg cursor-move transition ${
-                        dragging?.id === driver.id
-                          ? 'opacity-50 scale-95 bg-blue-100'
-                          : 'hover:bg-blue-100 hover:shadow-md'
-                      }`}
-                    >
-                      <div className="font-semibold text-blue-900">↕️ {driver.name}</div>
-                      <div className="text-xs text-blue-700 mt-1">🚕 Available</div>
-                    </div>
-                  ))
-                )}
-              </div>
-            </div>
+          {/* Header */}
+          <div className="mb-8">
+            <h1 className="text-4xl font-bold text-gray-900 mb-2">
+              ⏱️ Go Happy Cab - Daily Route Manager
+            </h1>
+            <p className="text-gray-600">Manage AM and PM route pairings. Drag unpaired children to drivers or vice versa.</p>
           </div>
 
-          {/* Bottom Row: Active Routes (Full Width) */}
-          <div className="bg-white rounded-lg shadow-md p-6">
-            <div className="flex items-center justify-between mb-4">
-              <h2 className="text-xl font-bold text-gray-800">
-                Active Routes ({sortedPaired.length})
-              </h2>
-              <div className="flex items-center gap-3">
-                <p className="text-xs text-gray-500">Sort by:</p>
-                <div className="flex items-center gap-2 bg-gray-100 rounded-lg p-1">
-                  <button
-                    onClick={() => setSortBy('child')}
-                    className={`px-3 py-2 rounded transition font-semibold text-sm ${
-                      sortBy === 'child'
-                        ? 'bg-white text-indigo-700 shadow-sm border border-indigo-300'
-                        : 'text-gray-600 hover:text-gray-800'
-                    }`}
-                  >
-                    Child
-                  </button>
-                  <span className="text-gray-400 px-2">↔️</span>
-                  <button
-                    onClick={() => setSortBy('driver')}
-                    className={`px-3 py-2 rounded transition font-semibold text-sm ${
-                      sortBy === 'driver'
-                        ? 'bg-white text-indigo-700 shadow-sm border border-indigo-300'
-                        : 'text-gray-600 hover:text-gray-800'
-                    }`}
-                  >
-                    Driver
-                  </button>
+          {/* Tab Navigation */}
+          <div className="flex gap-4 mb-8">
+            {['AM', 'PM'].map(tab => (
+              <button
+                key={tab}
+                onClick={() => setActiveTab(tab)}
+                className={`px-6 py-3 rounded-lg font-bold text-lg transition ${
+                  activeTab === tab
+                    ? 'bg-indigo-600 text-white shadow-lg'
+                    : 'bg-white text-gray-700 border-2 border-gray-200 hover:border-indigo-400'
+                }`}
+              >
+                {tab} Routes
+              </button>
+            ))}
+          </div>
+
+          {/* Main Layout */}
+          <div className="space-y-6">
+            
+            {/* Top Row: Children & Drivers */}
+            <div className="grid grid-cols-2 gap-6">
+              
+              {/* LEFT: Unpaired Children */}
+              <div className="bg-white rounded-lg shadow-md p-6">
+                <h2 className="text-xl font-bold text-gray-800 mb-4">
+                  Unassigned Children ({sortedUnpairedChildren.length})
+                </h2>
+                <p className="text-xs text-gray-500 mb-4">Sorted alphabetically</p>
+                <DroppableZone id="children-zone">
+                  {sortedUnpairedChildren.length === 0 ? (
+                    <p className="text-gray-400 text-sm italic">All children assigned! 🎉</p>
+                  ) : (
+                    sortedUnpairedChildren.map(child => (
+                      <DraggableChild key={child.id} child={child} />
+                    ))
+                  )}
+                </DroppableZone>
+              </div>
+
+              {/* RIGHT: Unpaired Drivers */}
+              <div className="bg-white rounded-lg shadow-md p-6">
+                <h2 className="text-xl font-bold text-gray-800 mb-4">
+                  Unassigned Drivers ({sortedUnpairedDrivers.length})
+                </h2>
+                <p className="text-xs text-gray-500 mb-4">Sorted alphabetically</p>
+                <DroppableZone id="drivers-zone">
+                  {sortedUnpairedDrivers.length === 0 ? (
+                    <p className="text-gray-400 text-sm italic">All drivers assigned! 🎉</p>
+                  ) : (
+                    sortedUnpairedDrivers.map(driver => (
+                      <DraggableDriver key={driver.id} driver={driver} />
+                    ))
+                  )}
+                </DroppableZone>
+              </div>
+            </div>
+
+            {/* Bottom Row: Active Routes (Full Width) */}
+            <div className="bg-white rounded-lg shadow-md p-6">
+              <div className="flex items-center justify-between mb-4">
+                <h2 className="text-xl font-bold text-gray-800">
+                  Active Routes ({sortedPaired.length})
+                </h2>
+                <div className="flex items-center gap-3">
+                  <p className="text-xs text-gray-500">Sort by:</p>
+                  <div className="flex items-center gap-2 bg-gray-100 rounded-lg p-1">
+                    <button
+                      onClick={() => setSortBy('child')}
+                      className={`px-3 py-2 rounded transition font-semibold text-sm ${
+                        sortBy === 'child'
+                          ? 'bg-white text-indigo-700 shadow-sm border border-indigo-300'
+                          : 'text-gray-600 hover:text-gray-800'
+                      }`}
+                    >
+                      Child
+                    </button>
+                    <span className="text-gray-400 px-2">↔️</span>
+                    <button
+                      onClick={() => setSortBy('driver')}
+                      className={`px-3 py-2 rounded transition font-semibold text-sm ${
+                        sortBy === 'driver'
+                          ? 'bg-white text-indigo-700 shadow-sm border border-indigo-300'
+                          : 'text-gray-600 hover:text-gray-800'
+                      }`}
+                    >
+                      Driver
+                    </button>
+                  </div>
                 </div>
               </div>
-            </div>
-            <p className="text-xs text-gray-500 mb-4">
-              {sortBy === 'child' ? 'Sorted A-Z by child name' : 'Sorted A-Z by driver name'}
-            </p>
-            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 max-h-[600px] overflow-y-auto">
-              {sortedPaired.length === 0 ? (
-                <p className="text-gray-400 text-sm italic col-span-full">No active routes for this period</p>
-              ) : (
-                sortedPaired.map(pairing => (
-                  <div
-                    key={pairing.id}
-                    className="bg-gradient-to-r from-green-50 to-emerald-50 border-2 border-green-400 rounded-lg p-4 transition-all duration-300 ease-in-out"
-                  >
-                    <div className="flex items-start justify-between mb-2">
-                      <div className="font-bold text-green-900 text-sm">
-                        👧 {pairing.childName}
+              <p className="text-xs text-gray-500 mb-4">
+                {sortBy === 'child' ? 'Sorted A-Z by child name' : 'Sorted A-Z by driver name'}
+              </p>
+              <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 max-h-[600px] overflow-y-auto">
+                {sortedPaired.length === 0 ? (
+                  <p className="text-gray-400 text-sm italic col-span-full">No active routes for this period</p>
+                ) : (
+                  sortedPaired.map(pairing => (
+                    <div
+                      key={pairing.id}
+                      className="bg-gradient-to-r from-green-50 to-emerald-50 border-2 border-green-400 rounded-lg p-4 transition-all duration-300 ease-in-out"
+                    >
+                      <div className="flex items-start justify-between mb-2">
+                        <div className="font-bold text-green-900 text-sm">
+                          👧 {pairing.childName}
+                        </div>
+                        <button
+                          onClick={() => handleUnpair(pairing)}
+                          className="text-red-500 hover:text-red-700 hover:bg-red-50 p-1 rounded transition flex-shrink-0"
+                          title="Unzip pairing"
+                        >
+                          🗑️
+                        </button>
                       </div>
-                      <button
-                        onClick={() => handleUnpair(pairing)}
-                        className="text-red-500 hover:text-red-700 hover:bg-red-50 p-1 rounded transition flex-shrink-0"
-                        title="Unzip pairing"
-                      >
-                        🗑️
-                      </button>
+                      <div className="flex items-center justify-center my-2 text-green-600 font-bold text-lg">
+                        ↔️
+                      </div>
+                      <div className="font-bold text-green-900 text-sm">
+                        🚗 {pairing.driverName}
+                      </div>
                     </div>
-                    <div className="flex items-center justify-center my-2 text-green-600 font-bold text-lg">
-                      ↔️
-                    </div>
-                    <div className="font-bold text-green-900 text-sm">
-                      🚗 {pairing.driverName}
-                    </div>
-                  </div>
-                ))
-              )}
+                  ))
+                )}
+              </div>
             </div>
           </div>
-        </div>
 
-        {/* Instructions */}
-        <div className="mt-8 bg-indigo-50 border border-indigo-200 rounded-lg p-4">
-          <h3 className="font-bold text-indigo-900 mb-2">How to use:</h3>
-          <ul className="text-sm text-indigo-800 space-y-1 ml-4 list-disc">
-            <li><strong>Switch routes:</strong> Click AM or PM tabs to view/edit each period independently</li>
-            <li><strong>Create pairing:</strong> Drag a child to a driver (or drag a driver to a child)</li>
-            <li><strong>Sort routes:</strong> Click "Child" or "Driver" to sort active routes alphabetically by that field</li>
-            <li><strong>Unzip pairing:</strong> Click trash icon to return child and driver to unpaired columns</li>
-            <li><strong>Notifications:</strong> All changes trigger alerts to assigned drivers via their app</li>
-            <li><strong>Audit log:</strong> All pairing changes are recorded with timestamp and manager name</li>
-          </ul>
+          {/* Instructions */}
+          <div className="mt-8 bg-indigo-50 border border-indigo-200 rounded-lg p-4">
+            <h3 className="font-bold text-indigo-900 mb-2">How to use:</h3>
+            <ul className="text-sm text-indigo-800 space-y-1 ml-4 list-disc">
+              <li><strong>Switch routes:</strong> Click AM or PM tabs to view/edit each period independently</li>
+              <li><strong>Create pairing:</strong> Drag a child to a driver (or drag a driver to a child)</li>
+              <li><strong>Sort routes:</strong> Click "Child" or "Driver" to sort active routes alphabetically by that field</li>
+              <li><strong>Unzip pairing:</strong> Click trash icon to return child and driver to unpaired columns</li>
+              <li><strong>Mobile friendly:</strong> Use finger drag on mobile devices!</li>
+              <li><strong>Notifications:</strong> All changes trigger alerts to assigned drivers via their app</li>
+              <li><strong>Audit log:</strong> All pairing changes are recorded with timestamp and manager name</li>
+            </ul>
+          </div>
         </div>
       </div>
-    </div>
+    </DndContext>
   );
 }
 
