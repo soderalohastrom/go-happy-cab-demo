@@ -6,8 +6,9 @@ import {
   TouchSensor,
   useSensor,
   useSensors,
+  useDraggable,
+  useDroppable,
 } from '@dnd-kit/core';
-import { CSS } from '@dnd-kit/utilities';
 import './index.css';
 
 function PairingUI() {
@@ -54,11 +55,12 @@ function PairingUI() {
     },
   });
 
-  const [activeId, setActiveId] = useState(null);
 
   const sensors = useSensors(
     useSensor(TouchSensor, {
-      distance: 8,
+      distance: 0,
+      delay: 100,
+      tolerance: 0,
     }),
     useSensor(PointerSensor, {
       distance: 8,
@@ -86,13 +88,8 @@ function PairingUI() {
     }
   }, [currentData.paired, sortBy]);
 
-  const handleDragStart = (event) => {
-    setActiveId(event.active.id);
-  };
-
   const handleDragEnd = (event) => {
     const { active, over } = event;
-    setActiveId(null);
 
     if (!over) return;
 
@@ -187,45 +184,75 @@ function PairingUI() {
     });
   };
 
-  const DraggableChild = ({ child }) => (
-    <div
-      id={`child-${child.id}`}
-      className={`bg-rose-50 border-2 border-rose-300 p-3 rounded-lg cursor-move transition touch-none select-none ${
-        activeId === `child-${child.id}`
-          ? 'opacity-50 scale-95 bg-rose-100 shadow-lg'
-          : 'hover:bg-rose-100 hover:shadow-md'
-      }`}
-    >
-      <div className="font-semibold text-rose-900">↕️ {child.name}</div>
-      <div className="text-xs text-rose-700 mt-1">📍 Needs driver</div>
-    </div>
-  );
+  const DraggableChild = ({ child }) => {
+    const { attributes, listeners, setNodeRef, isDragging } = useDraggable({
+      id: `child-${child.id}`,
+    });
 
-  const DraggableDriver = ({ driver }) => (
-    <div
-      id={`driver-${driver.id}`}
-      className={`bg-blue-50 border-2 border-blue-300 p-3 rounded-lg cursor-move transition touch-none select-none ${
-        activeId === `driver-${driver.id}`
-          ? 'opacity-50 scale-95 bg-blue-100 shadow-lg'
-          : 'hover:bg-blue-100 hover:shadow-md'
-      }`}
-    >
-      <div className="font-semibold text-blue-900">↕️ {driver.name}</div>
-      <div className="text-xs text-blue-700 mt-1">🚕 Available</div>
-    </div>
-  );
+    return (
+      <div
+        ref={setNodeRef}
+        {...listeners}
+        {...attributes}
+        className={`bg-rose-50 border-2 border-rose-300 p-3 rounded-lg cursor-move transition touch-none select-none ${
+          isDragging
+            ? 'opacity-50 scale-95 bg-rose-100 shadow-lg'
+            : 'hover:bg-rose-100 hover:shadow-md'
+        }`}
+        style={{
+          touchAction: 'none',
+        }}
+      >
+        <div className="font-semibold text-rose-900">↕️ {child.name}</div>
+        <div className="text-xs text-rose-700 mt-1">📍 Needs driver</div>
+      </div>
+    );
+  };
 
-  const DroppableZone = ({ id, children }) => (
-    <div id={id} className="space-y-3">
-      {children}
-    </div>
-  );
+  const DraggableDriver = ({ driver }) => {
+    const { attributes, listeners, setNodeRef, isDragging } = useDraggable({
+      id: `driver-${driver.id}`,
+    });
+
+    return (
+      <div
+        ref={setNodeRef}
+        {...listeners}
+        {...attributes}
+        className={`bg-blue-50 border-2 border-blue-300 p-3 rounded-lg cursor-move transition touch-none select-none ${
+          isDragging
+            ? 'opacity-50 scale-95 bg-blue-100 shadow-lg'
+            : 'hover:bg-blue-100 hover:shadow-md'
+        }`}
+        style={{
+          touchAction: 'none',
+        }}
+      >
+        <div className="font-semibold text-blue-900">↕️ {driver.name}</div>
+        <div className="text-xs text-blue-700 mt-1">🚕 Available</div>
+      </div>
+    );
+  };
+
+  const DroppableZone = ({ id, children }) => {
+    const { setNodeRef, isOver } = useDroppable({
+      id,
+    });
+
+    return (
+      <div 
+        ref={setNodeRef} 
+        className={`space-y-3 transition ${isOver ? 'bg-indigo-50 p-2 rounded' : ''}`}
+      >
+        {children}
+      </div>
+    );
+  };
 
   return (
     <DndContext
       sensors={sensors}
       collisionDetection={closestCenter}
-      onDragStart={handleDragStart}
       onDragEnd={handleDragEnd}
     >
       <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-50 p-4">
