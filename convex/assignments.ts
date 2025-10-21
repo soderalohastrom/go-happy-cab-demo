@@ -1,0 +1,383 @@
+import { query, mutation } from "./_generated/server";
+import { v } from "convex/values";
+
+// Get assignments for a specific date and period
+export const getForDatePeriod = query({
+  args: {
+    date: v.string(),
+    period: v.string(),
+  },
+  handler: async (ctx, args) => {
+    const assignments = await ctx.db
+      .query("assignments")
+      .withIndex("by_date_period", (q) =>
+        q.eq("date", args.date).eq("period", args.period)
+      )
+      .collect();
+
+    // Enrich with child and driver details
+    const enriched = await Promise.all(
+      assignments.map(async (assignment) => {
+        const child = await ctx.db.get(assignment.childId);
+        const driver = await ctx.db.get(assignment.driverId);
+
+        return {
+          ...assignment,
+          childName: child?.name || "Unknown",
+          driverName: driver?.name || "Unknown",
+        };
+      })
+    );
+
+    return enriched;
+  },
+});
+
+// Get assignments for a specific date (both AM and PM)
+export const getForDate = query({
+  args: { date: v.string() },
+  handler: async (ctx, args) => {
+    const assignments = await ctx.db
+      .query("assignments")
+      .withIndex("by_date", (q) => q.eq("date", args.date))
+      .collect();
+
+    // Enrich with child and driver details
+    const enriched = await Promise.all(
+      assignments.map(async (assignment) => {
+        const child = await ctx.db.get(assignment.childId);
+        const driver = await ctx.db.get(assignment.driverId);
+
+        return {
+          ...assignment,
+          childName: child?.name || "Unknown",
+          driverName: driver?.name || "Unknown",
+        };
+      })
+    );
+
+    // Group by period
+    const grouped = {
+      AM: enriched.filter((a) => a.period === "AM"),
+      PM: enriched.filter((a) => a.period === "PM"),
+    };
+
+    return grouped;
+  },
+});
+
+// Get assignments for a date range (for calendar view)
+export const getForDateRange = query({
+  args: {
+    startDate: v.string(),
+    endDate: v.string(),
+  },
+  handler: async (ctx, args) => {
+    const allAssignments = await ctx.db.query("assignments").collect();
+
+    // Filter by date range
+    const filtered = allAssignments.filter(
+      (a) => a.date >= args.startDate && a.date <= args.endDate
+    );
+
+    // Group by date with counts
+    const summary: Record<string, { AM: number; PM: number }> = {};
+
+    filtered.forEach((assignment) => {
+      if (!summary[assignment.date]) {
+        summary[assignment.date] = { AM: 0, PM: 0 };
+      }
+      if (assignment.period === "AM") {
+        summary[assignment.date].AM++;
+      } else if (assignment.period === "PM") {
+        summary[assignment.date].PM++;
+      }
+    });
+
+    return summary;
+  },
+});
+
+// Get unassigned children for a specific date and period
+export const getUnassignedChildren = query({
+  args: {
+    date: v.string(),
+    period: v.string(),
+  },
+  handler: async (ctx, args) => {
+    // Get all active children
+    const allChildren = await ctx.db
+      .query("children")
+      .withIndex("by_active", (q) => q.eq("active", true))
+      .collect();
+
+    // Get assignments for this date/period
+    const assignments = await ctx.db
+      .query("assignments")
+      .withIndex("by_date_period", (q) =>
+        q.eq("date", args.date).eq("period", args.period)
+      )
+      .collect();
+
+    // Find assigned child IDs
+    const assignedChildIds = new Set(assignments.map((a) => a.childId));
+
+    // Return unassigned children
+    return allChildren.filter((child) => !assignedChildIds.has(child._id));
+  },
+});
+
+// Get unassigned drivers for a specific date and period
+export const getUnassignedDrivers = query({
+  args: {
+    date: v.string(),
+    period: v.string(),
+  },
+  handler: async (ctx, args) => {
+    // Get all active drivers
+    const allDrivers = await ctx.db
+      .query("drivers")
+      .withIndex("by_active", (q) => q.eq("active", true))
+      .collect();
+
+    // Get assignments for this date/period
+    const assignments = await ctx.db
+      .query("assignments")
+      .withIndex("by_date_period", (q) =>
+        q.eq("date", args.date).eq("period", args.period)
+      )
+      .collect();
+
+    // Find assigned driver IDs
+    const assignedDriverIds = new Set(assignments.map((a) => a.driverId));
+
+    // Return unassigned drivers
+    return allDrivers.filter((driver) => !assignedDriverIds.has(driver._id));
+  },
+});
+
+// Create a new assignment
+export const create = mutation({
+  args: {
+    date: v.string(),
+    period: v.string(),
+    childId: v.id("children"),
+    driverId: v.id("drivers"),
+    status: v.optional(v.string()),
+    user: v.optional(v.string()),
+  },
+  handler: async (ctx, args) => {
+    const { date, period, childId, driverId, status = "scheduled", user } = args;
+
+    // Check if child is already assigned for this date/period
+    const existingChildAssignment = await ctx.db
+      .query("assignments")
+      .withIndex("by_date_period_child", (q) =>
+        q.eq("date", date).eq("period", period).eq("childId", childId)
+      )
+      .first();
+
+    if (existingChildAssignment) {
+      throw new Error("Child is already assigned for this period");
+    }
+
+    // Check if driver is already assigned for this date/period
+    const existingDriverAssignment = await ctx.db
+      .query("assignments")
+      .withIndex("by_date_period_driver", (q) =>
+        q.eq("date", date).eq("period", period).eq("driverId", driverId)
+      )
+      .first();
+
+    if (existingDriverAssignment) {
+      throw new Error("Driver is already assigned for this period");
+    }
+
+    // Get child and driver names for audit log
+    const child = await ctx.db.get(childId);
+    const driver = await ctx.db.get(driverId);
+
+    // Create the assignment
+    const assignmentId = await ctx.db.insert("assignments", {
+      date,
+      period,
+      childId,
+      driverId,
+      status,
+      createdAt: Date.now(),
+      createdBy: user,
+    });
+
+    // Create audit log entry
+    await ctx.db.insert("auditLog", {
+      timestamp: Date.now(),
+      action: "created",
+      entityType: "assignment",
+      entityId: assignmentId,
+      details: {
+        date,
+        period,
+        childName: child?.name || "Unknown",
+        driverName: driver?.name || "Unknown",
+      },
+      user,
+    });
+
+    return assignmentId;
+  },
+});
+
+// Delete an assignment
+export const remove = mutation({
+  args: {
+    id: v.id("assignments"),
+    user: v.optional(v.string()),
+  },
+  handler: async (ctx, args) => {
+    const assignment = await ctx.db.get(args.id);
+
+    if (!assignment) {
+      throw new Error("Assignment not found");
+    }
+
+    // Get child and driver names for audit log
+    const child = await ctx.db.get(assignment.childId);
+    const driver = await ctx.db.get(assignment.driverId);
+
+    // Delete the assignment
+    await ctx.db.delete(args.id);
+
+    // Create audit log entry
+    await ctx.db.insert("auditLog", {
+      timestamp: Date.now(),
+      action: "deleted",
+      entityType: "assignment",
+      entityId: args.id,
+      details: {
+        date: assignment.date,
+        period: assignment.period,
+        childName: child?.name || "Unknown",
+        driverName: driver?.name || "Unknown",
+      },
+      user: args.user,
+    });
+
+    return args.id;
+  },
+});
+
+// Update assignment status
+export const updateStatus = mutation({
+  args: {
+    id: v.id("assignments"),
+    status: v.string(),
+    user: v.optional(v.string()),
+  },
+  handler: async (ctx, args) => {
+    const assignment = await ctx.db.get(args.id);
+
+    if (!assignment) {
+      throw new Error("Assignment not found");
+    }
+
+    await ctx.db.patch(args.id, { status: args.status });
+
+    // Get child and driver names for audit log
+    const child = await ctx.db.get(assignment.childId);
+    const driver = await ctx.db.get(assignment.driverId);
+
+    // Create audit log entry
+    await ctx.db.insert("auditLog", {
+      timestamp: Date.now(),
+      action: "updated",
+      entityType: "assignment",
+      entityId: args.id,
+      details: {
+        date: assignment.date,
+        period: assignment.period,
+        childName: child?.name || "Unknown",
+        driverName: driver?.name || "Unknown",
+      },
+      user: args.user,
+    });
+
+    return args.id;
+  },
+});
+
+// Copy assignments from one date to another
+export const copyFromDate = mutation({
+  args: {
+    fromDate: v.string(),
+    toDate: v.string(),
+    period: v.optional(v.string()), // If provided, only copy this period
+    user: v.optional(v.string()),
+  },
+  handler: async (ctx, args) => {
+    const { fromDate, toDate, period, user } = args;
+
+    // Get source assignments
+    let sourceAssignments;
+    if (period) {
+      sourceAssignments = await ctx.db
+        .query("assignments")
+        .withIndex("by_date_period", (q) =>
+          q.eq("date", fromDate).eq("period", period)
+        )
+        .collect();
+    } else {
+      sourceAssignments = await ctx.db
+        .query("assignments")
+        .withIndex("by_date", (q) => q.eq("date", fromDate))
+        .collect();
+    }
+
+    // Create new assignments for target date
+    const newAssignmentIds = await Promise.all(
+      sourceAssignments.map(async (source) => {
+        // Check if assignment already exists
+        const existing = await ctx.db
+          .query("assignments")
+          .withIndex("by_date_period_child", (q) =>
+            q.eq("date", toDate).eq("period", source.period).eq("childId", source.childId)
+          )
+          .first();
+
+        if (!existing) {
+          const child = await ctx.db.get(source.childId);
+          const driver = await ctx.db.get(source.driverId);
+
+          const newId = await ctx.db.insert("assignments", {
+            date: toDate,
+            period: source.period,
+            childId: source.childId,
+            driverId: source.driverId,
+            status: "scheduled",
+            createdAt: Date.now(),
+            createdBy: user,
+          });
+
+          // Create audit log
+          await ctx.db.insert("auditLog", {
+            timestamp: Date.now(),
+            action: "created",
+            entityType: "assignment",
+            entityId: newId,
+            details: {
+              date: toDate,
+              period: source.period,
+              childName: child?.name || "Unknown",
+              driverName: driver?.name || "Unknown",
+            },
+            user,
+          });
+
+          return newId;
+        }
+        return null;
+      })
+    );
+
+    return newAssignmentIds.filter((id) => id !== null);
+  },
+});
