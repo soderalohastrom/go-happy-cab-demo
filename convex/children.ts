@@ -1,15 +1,17 @@
 import { query, mutation } from "./_generated/server";
 import { v } from "convex/values";
 
-// Get all active children
+// Get all active children (UNIFIED SCHEMA)
 export const list = query({
   args: {},
   handler: async (ctx) => {
-    return await ctx.db
+    const children = await ctx.db
       .query("children")
       .withIndex("by_active", (q) => q.eq("active", true))
-      .order("asc")
       .collect();
+    
+    // Sort by last name for unified schema
+    return children.sort((a, b) => a.lastName.localeCompare(b.lastName));
   },
 });
 
@@ -17,7 +19,8 @@ export const list = query({
 export const listAll = query({
   args: {},
   handler: async (ctx) => {
-    return await ctx.db.query("children").order("asc").collect();
+    const children = await ctx.db.query("children").collect();
+    return children.sort((a, b) => a.lastName.localeCompare(b.lastName));
   },
 });
 
@@ -29,72 +32,17 @@ export const get = query({
   },
 });
 
-// Create a new child
-export const create = mutation({
-  args: {
-    name: v.string(),
-    parentContact: v.optional(v.string()),
-    address: v.optional(v.string()),
-    notes: v.optional(v.string()),
-  },
-  handler: async (ctx, args) => {
-    const { name, parentContact, address, notes } = args;
-
-    const childId = await ctx.db.insert("children", {
-      name,
-      active: true,
-      metadata: {
-        parentContact,
-        address,
-        notes,
-      },
-    });
-
-    return childId;
-  },
-});
-
-// Update a child
-export const update = mutation({
-  args: {
-    id: v.id("children"),
-    name: v.optional(v.string()),
-    active: v.optional(v.boolean()),
-    parentContact: v.optional(v.string()),
-    address: v.optional(v.string()),
-    notes: v.optional(v.string()),
-  },
-  handler: async (ctx, args) => {
-    const { id, name, active, parentContact, address, notes } = args;
-    const existing = await ctx.db.get(id);
-
-    if (!existing) {
-      throw new Error("Child not found");
-    }
-
-    const updates: any = {};
-    if (name !== undefined) updates.name = name;
-    if (active !== undefined) updates.active = active;
-
-    if (parentContact !== undefined || address !== undefined || notes !== undefined) {
-      updates.metadata = {
-        ...existing.metadata,
-        ...(parentContact !== undefined && { parentContact }),
-        ...(address !== undefined && { address }),
-        ...(notes !== undefined && { notes }),
-      };
-    }
-
-    await ctx.db.patch(id, updates);
-    return id;
-  },
-});
+// NOTE: create/update temporarily disabled for unified schema migration
+// These will be re-implemented to match the full children schema (firstName, lastName, etc.)
 
 // Deactivate a child (soft delete)
 export const deactivate = mutation({
   args: { id: v.id("children") },
   handler: async (ctx, args) => {
-    await ctx.db.patch(args.id, { active: false });
+    await ctx.db.patch(args.id, { 
+      active: false,
+      updatedAt: new Date().toISOString(),
+    });
     return args.id;
   },
 });

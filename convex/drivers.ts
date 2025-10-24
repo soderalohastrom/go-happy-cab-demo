@@ -1,15 +1,17 @@
 import { query, mutation } from "./_generated/server";
 import { v } from "convex/values";
 
-// Get all active drivers
+// Get all active drivers (UNIFIED SCHEMA)
 export const list = query({
   args: {},
   handler: async (ctx) => {
-    return await ctx.db
+    const drivers = await ctx.db
       .query("drivers")
       .withIndex("by_active", (q) => q.eq("active", true))
-      .order("asc")
       .collect();
+    
+    // Sort by last name for unified schema
+    return drivers.sort((a, b) => a.lastName.localeCompare(b.lastName));
   },
 });
 
@@ -17,7 +19,8 @@ export const list = query({
 export const listAll = query({
   args: {},
   handler: async (ctx) => {
-    return await ctx.db.query("drivers").order("asc").collect();
+    const drivers = await ctx.db.query("drivers").collect();
+    return drivers.sort((a, b) => a.lastName.localeCompare(b.lastName));
   },
 });
 
@@ -29,72 +32,18 @@ export const get = query({
   },
 });
 
-// Create a new driver
-export const create = mutation({
-  args: {
-    name: v.string(),
-    phone: v.optional(v.string()),
-    vehicle: v.optional(v.string()),
-    capacity: v.optional(v.number()),
-  },
-  handler: async (ctx, args) => {
-    const { name, phone, vehicle, capacity } = args;
-
-    const driverId = await ctx.db.insert("drivers", {
-      name,
-      active: true,
-      metadata: {
-        phone,
-        vehicle,
-        capacity,
-      },
-    });
-
-    return driverId;
-  },
-});
-
-// Update a driver
-export const update = mutation({
-  args: {
-    id: v.id("drivers"),
-    name: v.optional(v.string()),
-    active: v.optional(v.boolean()),
-    phone: v.optional(v.string()),
-    vehicle: v.optional(v.string()),
-    capacity: v.optional(v.number()),
-  },
-  handler: async (ctx, args) => {
-    const { id, name, active, phone, vehicle, capacity } = args;
-    const existing = await ctx.db.get(id);
-
-    if (!existing) {
-      throw new Error("Driver not found");
-    }
-
-    const updates: any = {};
-    if (name !== undefined) updates.name = name;
-    if (active !== undefined) updates.active = active;
-
-    if (phone !== undefined || vehicle !== undefined || capacity !== undefined) {
-      updates.metadata = {
-        ...existing.metadata,
-        ...(phone !== undefined && { phone }),
-        ...(vehicle !== undefined && { vehicle }),
-        ...(capacity !== undefined && { capacity }),
-      };
-    }
-
-    await ctx.db.patch(id, updates);
-    return id;
-  },
-});
+// NOTE: create/update temporarily disabled for unified schema migration
+// These will be re-implemented to match the full drivers schema (firstName, lastName, employeeId, etc.)
 
 // Deactivate a driver (soft delete)
 export const deactivate = mutation({
   args: { id: v.id("drivers") },
   handler: async (ctx, args) => {
-    await ctx.db.patch(args.id, { active: false });
+    await ctx.db.patch(args.id, { 
+      active: false,
+      status: "inactive",
+      updatedAt: new Date().toISOString(),
+    });
     return args.id;
   },
 });
