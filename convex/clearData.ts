@@ -3,10 +3,10 @@ import { mutation } from "./_generated/server";
 export const clearAllData = mutation({
   args: {},
   handler: async (ctx) => {
-    // Delete all assignments
-    const assignments = await ctx.db.query("assignments").collect();
-    for (const assignment of assignments) {
-      await ctx.db.delete(assignment._id);
+    // Delete all routes (unified schema uses "routes" not "assignments")
+    const routes = await ctx.db.query("routes").collect();
+    for (const route of routes) {
+      await ctx.db.delete(route._id);
     }
 
     // Delete all children
@@ -21,11 +21,18 @@ export const clearAllData = mutation({
       await ctx.db.delete(driver._id);
     }
 
+    // Delete all audit logs
+    const auditLogs = await ctx.db.query("auditLogs").collect();
+    for (const log of auditLogs) {
+      await ctx.db.delete(log._id);
+    }
+
     return {
       message: "All data cleared",
-      assignmentsDeleted: assignments.length,
+      routesDeleted: routes.length,
       childrenDeleted: children.length,
       driversDeleted: drivers.length,
+      auditLogsDeleted: auditLogs.length,
     };
   },
 });
