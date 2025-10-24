@@ -37,10 +37,18 @@ export const getForDatePeriod = query({
 export const getForDate = query({
   args: { date: v.string() },
   handler: async (ctx, args) => {
-    const assignments = await ctx.db
+    // Get both AM and PM routes for the date
+    const amRoutes = await ctx.db
       .query("routes")
-      .withIndex("by_date", (q) => q.eq("date", args.date))
+      .withIndex("by_date_period", (q) => q.eq("date", args.date).eq("period", "AM"))
       .collect();
+    
+    const pmRoutes = await ctx.db
+      .query("routes")
+      .withIndex("by_date_period", (q) => q.eq("date", args.date).eq("period", "PM"))
+      .collect();
+    
+    const assignments = [...amRoutes, ...pmRoutes];
 
     // Enrich with child and driver details
     const enriched = await Promise.all(
@@ -50,8 +58,8 @@ export const getForDate = query({
 
         return {
           ...assignment,
-          childName: child?.name || "Unknown",
-          driverName: driver?.name || "Unknown",
+          childName: child ? `${child.firstName} ${child.lastName}` : "Unknown",
+          driverName: driver ? `${driver.firstName} ${driver.lastName}` : "Unknown",
         };
       })
     );
@@ -236,23 +244,35 @@ export const copyFromPreviousDay = mutation({
     targetDateObj.setDate(targetDateObj.getDate() - 1);
     const previousDate = targetDateObj.toISOString().split('T')[0];
 
-    // Get all assignments from previous day
-    const previousAssignments = await ctx.db
+    // Get all assignments from previous day (both AM and PM)
+    const previousAM = await ctx.db
       .query("routes")
-      .withIndex("by_date", (q) => q.eq("date", previousDate))
+      .withIndex("by_date_period", (q) => q.eq("date", previousDate).eq("period", "AM"))
       .collect();
+    
+    const previousPM = await ctx.db
+      .query("routes")
+      .withIndex("by_date_period", (q) => q.eq("date", previousDate).eq("period", "PM"))
+      .collect();
+    
+    const previousAssignments = [...previousAM, ...previousPM];
 
     if (previousAssignments.length === 0) {
       throw new Error("No assignments found for previous day");
     }
 
     // Check if target date already has assignments
-    const existingAssignments = await ctx.db
+    const existingAM = await ctx.db
       .query("routes")
-      .withIndex("by_date", (q) => q.eq("date", args.targetDate))
+      .withIndex("by_date_period", (q) => q.eq("date", args.targetDate).eq("period", "AM"))
+      .first();
+    
+    const existingPM = await ctx.db
+      .query("routes")
+      .withIndex("by_date_period", (q) => q.eq("date", args.targetDate).eq("period", "PM"))
       .first();
 
-    if (existingAssignments) {
+    if (existingAM || existingPM) {
       throw new Error("This date already has assignments");
     }
 
@@ -390,10 +410,18 @@ export const copyFromDate = mutation({
         )
         .collect();
     } else {
-      sourceAssignments = await ctx.db
+      // Get both AM and PM routes
+      const amRoutes = await ctx.db
         .query("routes")
-        .withIndex("by_date", (q) => q.eq("date", fromDate))
+        .withIndex("by_date_period", (q) => q.eq("date", fromDate).eq("period", "AM"))
         .collect();
+      
+      const pmRoutes = await ctx.db
+        .query("routes")
+        .withIndex("by_date_period", (q) => q.eq("date", fromDate).eq("period", "PM"))
+        .collect();
+      
+      sourceAssignments = [...amRoutes, ...pmRoutes];
     }
 
     // Create new assignments for target date
