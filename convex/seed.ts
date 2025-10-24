@@ -207,6 +207,15 @@ export const seedData = mutation({
         description: "Database seeded with unified schema data",
         count: `${driverData.length} drivers, ${childData.length} children, ${routeDays.length * 25} routes`,
       },
+      sourceInfo: {
+        appVersion: "1.0.0",
+        deviceId: "seed-script",
+      },
+      complianceFlags: {
+        requiresRetention: true,
+        sensitiveData: false,
+        regulatoryRelevant: false,
+      },
     });
 
     return {

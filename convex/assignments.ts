@@ -1,6 +1,32 @@
 import { query, mutation } from "./_generated/server";
 import { v } from "convex/values";
 
+// Helper function to create audit log entries matching unified schema
+const createAuditLog = (action: string, resource: string, resourceId: string, details: any, userId?: string) => ({
+  logId: `AL-${Date.now()}-${Math.random().toString(36).substr(2, 6)}`,
+  timestamp: new Date().toISOString(),
+  action,
+  resource,
+  resourceId,
+  method: action === "created" ? "CREATE" as const : 
+          action === "deleted" ? "DELETE" as const : 
+          action === "updated" ? "UPDATE" as const : "CREATE" as const,
+  category: "data_modification" as const,
+  severity: "info" as const,
+  userId,
+  userType: userId === "system" ? "system" as const : "dispatcher" as const,
+  details,
+  sourceInfo: {
+    appVersion: "1.0.0",
+    deviceId: "dispatch-app",
+  },
+  complianceFlags: {
+    requiresRetention: true,
+    sensitiveData: false,
+    regulatoryRelevant: false,
+  },
+});
+
 // Get assignments for a specific date and period
 export const getForDatePeriod = query({
   args: {
@@ -219,19 +245,19 @@ export const create = mutation({
     });
 
     // Create audit log entry
-    await ctx.db.insert("auditLog", {
-      timestamp: Date.now(),
-      action: "created",
-      entityType: "assignment",
-      entityId: assignmentId,
-      details: {
+    await ctx.db.insert("auditLogs", createAuditLog(
+      "created",
+      "route",
+      assignmentId,
+      {
+        description: "Route assignment created",
         date,
         period,
-        childName: child?.name || "Unknown",
-        driverName: driver?.name || "Unknown",
+        childName: `${child?.firstName || ""} ${child?.lastName || "Unknown"}`.trim(),
+        driverName: `${driver?.firstName || ""} ${driver?.lastName || "Unknown"}`.trim(),
       },
-      user,
-    });
+      user
+    ));
 
     return assignmentId;
   },
@@ -295,18 +321,18 @@ export const copyFromPreviousDay = mutation({
     }
 
     // Create audit log entry
-    await ctx.db.insert("auditLog", {
-      timestamp: Date.now(),
-      action: "bulk_copied",
-      entityType: "assignment",
-      entityId: `${copiedCount}_assignments`,
-      details: {
+    await ctx.db.insert("auditLogs", createAuditLog(
+      "bulk_copied",
+      "route",
+      `${copiedCount}_routes`,
+      {
+        description: `Copied ${copiedCount} routes from previous day`,
         date: args.targetDate,
         fromDate: previousDate,
         count: copiedCount.toString(),
       },
-      user: "system",
-    });
+      "system"
+    ));
 
     return {
       message: `Successfully copied ${copiedCount} assignments from ${previousDate}`,
@@ -336,19 +362,19 @@ export const remove = mutation({
     await ctx.db.delete(args.id);
 
     // Create audit log entry
-    await ctx.db.insert("auditLog", {
-      timestamp: Date.now(),
-      action: "deleted",
-      entityType: "assignment",
-      entityId: args.id,
-      details: {
+    await ctx.db.insert("auditLogs", createAuditLog(
+      "deleted",
+      "route",
+      args.id,
+      {
+        description: "Route assignment deleted",
         date: assignment.date,
         period: assignment.period,
-        childName: child?.name || "Unknown",
-        driverName: driver?.name || "Unknown",
+        childName: `${child?.firstName || ""} ${child?.lastName || "Unknown"}`.trim(),
+        driverName: `${driver?.firstName || ""} ${driver?.lastName || "Unknown"}`.trim(),
       },
-      user: args.user,
-    });
+      args.user
+    ));
 
     return args.id;
   },
@@ -375,19 +401,19 @@ export const updateStatus = mutation({
     const driver = await ctx.db.get(assignment.driverId);
 
     // Create audit log entry
-    await ctx.db.insert("auditLog", {
-      timestamp: Date.now(),
-      action: "updated",
-      entityType: "assignment",
-      entityId: args.id,
-      details: {
+    await ctx.db.insert("auditLogs", createAuditLog(
+      "updated",
+      "route",
+      args.id,
+      {
+        description: "Route assignment updated",
         date: assignment.date,
         period: assignment.period,
-        childName: child?.name || "Unknown",
-        driverName: driver?.name || "Unknown",
+        childName: `${child?.firstName || ""} ${child?.lastName || "Unknown"}`.trim(),
+        driverName: `${driver?.firstName || ""} ${driver?.lastName || "Unknown"}`.trim(),
       },
-      user: args.user,
-    });
+      args.user
+    ));
 
     return args.id;
   },
@@ -456,19 +482,19 @@ export const copyFromDate = mutation({
           });
 
           // Create audit log
-          await ctx.db.insert("auditLog", {
-            timestamp: Date.now(),
-            action: "created",
-            entityType: "assignment",
-            entityId: newId,
-            details: {
+          await ctx.db.insert("auditLogs", createAuditLog(
+            "created",
+            "route",
+            newId,
+            {
+              description: "Route assignment created via copy",
               date: toDate,
               period: source.period,
-              childName: child?.name || "Unknown",
-              driverName: driver?.name || "Unknown",
+              childName: `${child?.firstName || ""} ${child?.lastName || "Unknown"}`.trim(),
+              driverName: `${driver?.firstName || ""} ${driver?.lastName || "Unknown"}`.trim(),
             },
-            user,
-          });
+            user
+          ));
 
           return newId;
         }
