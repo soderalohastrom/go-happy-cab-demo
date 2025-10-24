@@ -214,6 +214,7 @@ export const create = mutation({
       driverId,
       status,
       createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
       createdBy: user,
     });
 
@@ -288,6 +289,7 @@ export const copyFromPreviousDay = mutation({
         driverId: assignment.driverId,
         status: "scheduled",
         createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
       });
       copiedCount++;
     }
@@ -449,6 +451,7 @@ export const copyFromDate = mutation({
             driverId: source.driverId,
             status: "scheduled",
             createdAt: new Date().toISOString(),
+            updatedAt: new Date().toISOString(),
             createdBy: user,
           });
 
