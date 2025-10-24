@@ -5,8 +5,8 @@
  */
 
 import { useQuery, useMutation } from 'convex/react';
-import { api } from '../../../convex/_generated/api';
-import { Id } from '../../../convex/_generated/dataModel';
+import { api } from '../convex/_generated/api';
+import { Id } from '../convex/_generated/dataModel';
 
 /**
  * Get routes for a specific date and period (AM/PM)
