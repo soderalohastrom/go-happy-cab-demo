@@ -410,6 +410,8 @@ export default defineSchema({
       requiresRetention: v.boolean(),
       sensitiveData: v.boolean(),
       regulatoryRelevant: v.boolean(),
+      exportRestricted: v.boolean(),
+      retentionPeriodYears: v.float64(),
     })),
   })
     .index("by_timestamp", ["timestamp"])

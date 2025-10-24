@@ -215,6 +215,8 @@ export const seedData = mutation({
         requiresRetention: true,
         sensitiveData: false,
         regulatoryRelevant: false,
+        exportRestricted: false,
+        retentionPeriodYears: 7,
       },
     });
 

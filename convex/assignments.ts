@@ -24,6 +24,8 @@ const createAuditLog = (action: string, resource: string, resourceId: string, de
     requiresRetention: true,
     sensitiveData: false,
     regulatoryRelevant: false,
+    exportRestricted: false,
+    retentionPeriodYears: 7,
   },
 });
 
