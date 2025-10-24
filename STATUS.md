@@ -1,36 +1,46 @@
-# Go Happy Cab Demo - Project Status
+# Go Happy Cab - Project Status
 
 **Last Updated:** October 24, 2025  
-**Status:** ✅ Fully Functional  
-**Convex Deployment:** gohappymatching (dev)
+**Status:** 🚀 Migration to Unified Architecture  
+**Unified Convex:** `colorful-wildcat-524.convex.cloud`
 
 ## Current State
 
-The real-time scheduling system for child transportation management is fully operational with calendar-based assignment tracking, drag-and-drop interface, and copy-from-previous-day functionality.
+**Three Apps, One Database:** Integrating dispatch and driver apps with unified Convex backend for real-time synchronization.
 
-### Working Features
-- ✅ **Date navigation** - Calendar view with prev/next controls
-- ✅ **Drag-and-drop assignments** - Bidirectional (child→driver, driver→child)
-- ✅ **AM/PM period switching** - Separate route management
-- ✅ **Copy Previous Day's Routes** - One-click bulk copy (24 assignments)
-- ✅ **Real-time sync** - WebSocket updates across multiple tabs
-- ✅ **Audit logging** - All mutations tracked in database
-- ✅ **Conflict prevention** - No double-booking allowed
+### App Status
+1. **✅ POC App (Vite)** - Original demo, fully functional, preserved at root
+2. **✅ Dispatch App (Expo)** - Mobile-first dispatch app, core features working
+3. **🚧 Driver App (Expo)** - Retrofitting to use unified Convex deployment
 
-### Recent Fix (Oct 24, 2025)
-**Issue:** `copyFromPreviousDay` mutation was failing with schema validation error  
-**Root Cause:** `auditLog` table schema was missing `count` and `fromDate` fields in the `details` object  
-**Solution:** Updated `convex/schema.ts` to add:
-- `count: v.optional(v.string())` - For bulk operation tracking
-- `fromDate: v.optional(v.string())` - For copy operation source tracking
+### Dispatch App - Working Features
+- ✅ **Monthly calendar** - react-native-calendars with route indicators
+- ✅ **Date navigation** - Prev/today/next buttons with date picker
+- ✅ **AM/PM period tabs** - Separate route management
+- ✅ **Copy Previous Day's Schedule** - Bulk copy (25 routes tested)
+- ✅ **Real-time Convex sync** - WebSocket updates
+- ✅ **Route assignment UI** - Child/driver lists with remove functionality
+- ✅ **Unified schema integration** - All 4 schema errors resolved
 
-**Files Modified:**
-- `convex/schema.ts` - Lines 59-60 (added missing fields)
+### Recent Accomplishments (Oct 24, 2025)
 
-**Testing:** Verified by clicking "Copy Previous Day's Routes" button on October 26, 2025:
-- ✅ Successfully copied 24 assignments (12 AM + 12 PM)
-- ✅ No schema validation errors
-- ✅ Audit log entry created correctly
+**Dispatch App Migration Complete:**
+- ✅ Created dispatch-app/ subdirectory with Expo Router
+- ✅ Built unified Convex schema (650+ lines) merging dispatch + driver needs
+- ✅ Created new Convex deployment: `colorful-wildcat-524.convex.cloud`
+- ✅ Implemented MonthCalendar, DateNavigator, AssignmentScreen components
+- ✅ Fixed 4 schema validation errors systematically:
+  1. Index naming (`by_date` → `by_date_period`)
+  2. Timestamp format (`Date.now()` → `new Date().toISOString()`)
+  3. Missing `type` field (added `"pickup"` | `"dropoff"`)
+  4. Missing `updatedAt` field (added ISO string)
+- ✅ Tested "Copy Previous Day's Schedule" - **25 routes copied successfully**
+
+**Next: Driver App Integration**
+- 🚧 Update to unified Convex deployment
+- 🚧 Retrofit core features: Today's routes + 3-button system
+- 🚧 Remove unnecessary features (badges, etc.)
+- 🚧 Test bidirectional real-time sync
 
 ## Tech Stack
 
@@ -107,22 +117,52 @@ The POC has proven the concept successfully. Next phase: Convert to mobile-first
 
 ## Environment
 
+### POC App (Vite)
 **Dev URL:** http://localhost:5173  
-**Convex Dashboard:** https://dashboard.convex.dev/d/rugged-mule-519  
-**Deployment:** gohappymatching (dev)
+**Old Convex:** `rugged-mule-519.convex.cloud` (preserved for POC demo)
 
-Environment variables configured in `.env.local`:
-- `CONVEX_DEPLOYMENT` - Dev deployment name
-- `VITE_CONVEX_URL` - Client connection URL
+### Dispatch App (Expo)
+**Expo Dev:** `npx expo start` in `dispatch-app/`  
+**Unified Convex:** `colorful-wildcat-524.convex.cloud`
+
+### Driver App (Expo)  
+**Location:** `/Users/soderstrom/generated_repos/spec-kit-expo-router/cab-driver-mobile-dash/`  
+**Status:** Being retrofitted to use unified Convex
+
+### Convex Dashboard
+**Unified Deployment:** https://dashboard.convex.dev/deployment/settings/colorful-wildcat-524  
+**Deployment Name:** `colorful-wildcat-524`
+
+Environment variables:
+- **POC:** `VITE_CONVEX_URL` in `.env.local`
+- **Dispatch:** `EXPO_PUBLIC_CONVEX_URL` in `dispatch-app/.env.local`  
+- **Driver:** `EXPO_PUBLIC_CONVEX_URL` (to be created)
 
 ## Important Files
 
-- `convex/schema.ts` - Database schema definitions
-- `convex/assignments.ts` - Assignment CRUD + copy logic
-- `convex/seed.ts` - Initial data population
-- `src/App.jsx` - Main UI component
-- `CLAUDE.md` - Development guidelines and architecture
-- `SETUP.md` - Setup instructions and testing guide
+### Root (Shared Convex Backend)
+- `convex/schema.ts` - Unified database schema (650+ lines)
+- `convex/assignments.ts` - Route assignment logic + copy functionality
+- `convex/seed.ts` - Initial data population (18 children, 12 drivers, 100 routes)
+- `convex/children.ts` / `drivers.ts` - Entity CRUD operations
+
+### POC App
+- `src/App.jsx` - Original Vite demo UI
+
+### Dispatch App
+- `dispatch-app/app/(tabs)/index.tsx` - Main dispatch interface
+- `dispatch-app/components/` - MonthCalendar, DateNavigator, AssignmentScreen
+- `dispatch-app/hooks/useConvexRoutes.ts` - Convex integration hooks
+- `dispatch-app/README.md` - Dispatch app documentation
+
+### Driver App
+- `/Users/soderstrom/generated_repos/spec-kit-expo-router/cab-driver-mobile-dash/`
+- `app/(tabs)/routes/index.tsx` - Routes screen (currently mock data)
+- `convex/schema.ts` - Old schema (to be replaced with unified)
+
+### Documentation
+- `CLAUDE.md` - Development guidelines (updated for multi-app architecture)
+- `STATUS.md` - This file
 
 ---
 
