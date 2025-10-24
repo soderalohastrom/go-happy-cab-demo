@@ -1,186 +1,189 @@
-# Go Happy Cab - Dispatch App (Expo Router)
+# Go Happy Cab - Dispatch App
 
-Mobile-first dispatcher application for managing child-driver transportation assignments. Built with React Native and Expo Router, deployed to iOS, Android, and Web.
+Mobile-first React Native dispatch application for child transportation route management.
 
-## 🎯 Purpose
-
-This is the **mobile-optimized version** of the Go Happy Cab POC, designed for:
-- Touch-based drag-and-drop assignment interface
-- Native iOS and Android apps for non-technical dispatcher
-- Web version for desktop/tablet use
-- Real-time sync with driver mobile app via shared Convex backend
-
-## 🏗️ Architecture
-
-**Frontend:** React Native 0.81 + Expo Router v6 + TypeScript  
-**Backend:** Shared Convex deployment with POC app (`../convex/`)  
-**Platform:** iOS 13+, Android 8+, Web (Safari, Chrome, Firefox)
-
-## 📱 Shared Backend
-
-This app uses the **same Convex database** as:
-- `../src/` - Original React-Vite POC
-- `/cab-driver-mobile-dash/` - Driver mobile dashboard
-
-Changes made in the dispatch app instantly sync to driver phones! 🚀
-
-## 🚀 Quick Start
-
-### Prerequisites
-- Node.js 18+
-- Expo CLI: `npm install -g expo-cli`
-- iOS Simulator (Mac) or Android Emulator
-- Convex deployment running (`npx convex dev` in parent directory)
-
-### Installation
+## Quick Start
 
 ```bash
-# Install dependencies
-npm install
+# Terminal 1: Start Convex backend (from project root)
+cd /Users/soderstrom/2025/October/go-happy-cab-demo
+npx convex dev
 
-# Start Expo development server
-npm start
+# Terminal 2: Start Expo dev server
+cd /Users/soderstrom/2025/October/go-happy-cab-demo/dispatch-app
+npx expo start
 
-# Run on specific platform
-npm run ios       # iOS Simulator
-npm run android   # Android Emulator
-npm run web       # Browser
+# Then press:
+# 'i' for iOS Simulator
+# 'a' for Android Emulator
+# or scan QR code with Expo Go app
 ```
 
-### Environment Setup
-
-The `.env.local` file is already configured to use the shared Convex backend:
-
-```bash
-EXPO_PUBLIC_CONVEX_URL=https://rugged-mule-519.convex.cloud
-CONVEX_DEPLOYMENT=dev:rugged-mule-519
-```
-
-## 📂 Project Structure
+## Project Structure
 
 ```
 dispatch-app/
 ├── app/
 │   ├── (tabs)/
-│   │   ├── index.tsx        # Home/Calendar view (WIP)
-│   │   └── two.tsx          # Assignment interface (WIP)
-│   └── _layout.tsx          # Root layout with ConvexProvider
-├── lib/
-│   └── convex.ts            # Convex client configuration
-├── convex.json              # Points to ../convex/ (shared backend)
-├── .env.local               # Environment variables (gitignored)
-└── app.json                 # Expo configuration
+│   │   └── index.tsx          # Main dispatch screen
+│   └── _layout.tsx            # Root layout with ConvexProvider
+├── components/
+│   ├── MonthCalendar.tsx      # Calendar view with route indicators
+│   ├── DateNavigator.tsx      # Date navigation controls
+│   └── AssignmentScreen.tsx   # Route management interface
+├── hooks/
+│   └── useConvexRoutes.ts     # Convex query/mutation hooks
+├── convex/
+│   └── _generated/            # Convex TypeScript types (copied)
+└── lib/
+    └── convex.ts              # Convex client setup
 ```
 
-## 🔗 Convex Integration
+## Features
 
-The app connects to the parent `convex/` directory:
+### Calendar View
+- 📅 Month calendar with route indicators
+- 🟢 Green dot: Both AM & PM routes scheduled
+- 🟠 Orange dot: Only AM or PM scheduled
+- Touch-optimized date selection
 
-```typescript
-// lib/convex.ts - Configured to use shared backend
-import { ConvexReactClient } from "convex/react";
-const convex = new ConvexReactClient(process.env.EXPO_PUBLIC_CONVEX_URL);
+### Route Management
+- 🌅 AM Pickup routes
+- 🌇 PM Dropoff routes
+- Tab-based period switching
+- Real-time route counts
 
-// app/_layout.tsx - ConvexProvider wraps entire app
-<ConvexProvider client={convex}>
-  {/* All screens have access to Convex */}
-</ConvexProvider>
+### Assignment Interface
+- Active routes display (child → driver pairs)
+- Unassigned children horizontal scroll
+- Available drivers horizontal scroll
+- Copy from previous day button
+- Remove route with confirmation
 
-// app/(tabs)/index.tsx - Example query
-const children = useQuery(api.children.list);
-```
+### Real-Time Sync
+- Instant updates across all connected devices
+- Live route status changes
+- Automatic refresh on data changes
 
-## 🧪 Testing Convex Connection
+## Convex Integration
 
-The home tab (`app/(tabs)/index.tsx`) displays a connection test:
-1. Start the app: `npm start`
-2. Press `w` for web or `i` for iOS simulator
-3. You should see "✅ Connected to Convex!" with list of children
+This app connects to the **unified Convex deployment** shared with the POC app:
+- **Deployment:** `colorful-wildcat-524.convex.cloud`
+- **Environment:** Set in `.env.local` (not tracked in git)
 
-## 📋 Development Roadmap
+### Convex Hooks
 
-See `../MIGRATION_SPEC.md` for the complete 4-week migration plan.
+All Convex operations use hooks from `hooks/useConvexRoutes.ts`:
 
-**Phase 1: Core Infrastructure** ✅ Complete
-- [x] Expo Router project setup
-- [x] Convex client connection
-- [x] Shared backend verification
+**Query Hooks:**
+- `useRoutesForDatePeriod(date, period)` - Get routes for AM/PM
+- `useRouteDateRange(startDate, endDate)` - Calendar month data
+- `useUnassignedChildren(date, period)` - Children needing assignment
+- `useUnassignedDrivers(date, period)` - Available drivers
 
-**Phase 2: Calendar & Navigation** 🔜 Next
-- [ ] Calendar component with assignment indicators
-- [ ] Date navigation (prev/today/next)
-- [ ] AM/PM period tabs
+**Mutation Hooks:**
+- `useCreateRoute()` - Create new assignment
+- `useCopyFromPreviousDay()` - Bulk copy yesterday's routes
+- `useRemoveRoute()` - Delete assignment
 
-**Phase 3: Assignment Interface** 🔜 Upcoming
-- [ ] Unassigned children/drivers lists
-- [ ] Active routes display
-- [ ] Touch-optimized drag-and-drop
+## ⚠️ Important: Schema Changes
 
-**Phase 4: Copy Feature** 🔜 Upcoming
-- [ ] Empty date detection
-- [ ] Copy from previous day
-
-## 🔄 Real-Time Sync Test
-
-1. Open this dispatch app
-2. Open the POC web app (`cd .. && npm run dev`)
-3. Make a change in one app → see it instantly in the other!
-
-## 📝 Available Scripts
+**If the Convex schema changes**, you must re-copy the generated types:
 
 ```bash
-# Development
-npm start              # Start Expo dev server (choose platform)
-npm run ios            # Open in iOS Simulator
-npm run android        # Open in Android Emulator  
-npm run web            # Open in web browser
-
-# Type Checking
-npm run ts:check       # Run TypeScript checks
-
-# Building
-npx expo prebuild      # Generate native projects
-npx eas build          # Build for production (requires EAS)
+cd dispatch-app/convex
+rm -rf _generated
+cp -r ../../convex/_generated .
 ```
 
-## 🎨 Styling
+Then restart Expo with cache clearing:
+```bash
+npx expo start --clear
+```
 
-Currently using React Native StyleSheet. Migration plan includes:
-- Option A: NativeWind (Tailwind for React Native)
-- Option B: React Native StyleSheet with design tokens
+**Why?** Metro bundler (Expo's bundler) needs a local copy of Convex types. It doesn't follow symlinks well, so we maintain a copy of the `_generated` directory.
 
-## 🐛 Troubleshooting
+**When to do this:**
+- After modifying `convex/schema.ts`
+- After adding new Convex functions
+- After pulling changes that affect Convex code
+- If you see TypeScript errors about missing Convex types
 
-**"Missing EXPO_PUBLIC_CONVEX_URL"**
-- Ensure `.env.local` exists with correct Convex URL
-- Restart Metro bundler: `npm start` (press `r` to reload)
+## Environment Setup
 
-**"Cannot connect to Convex"**
-- Verify parent POC's Convex deployment is running
-- Check network connection
-- Verify URL in `.env.local` matches `../env.local`
+Create `.env.local` (not tracked in git):
 
-**TypeScript errors on `api.*`**
-- Run `npx convex dev` in parent directory to generate types
-- Check `../convex/_generated/api.d.ts` exists
+```bash
+# Convex Configuration
+EXPO_PUBLIC_CONVEX_URL=https://colorful-wildcat-524.convex.cloud
+CONVEX_DEPLOYMENT=dev:colorful-wildcat-524
+```
 
-## 📚 Resources
+## Data Model
 
-- **Expo Router Docs:** https://docs.expo.dev/router/introduction/
-- **Convex React Native:** https://docs.convex.dev/client/react/react-native
-- **Migration Spec:** `../MIGRATION_SPEC.md`
-- **Project Status:** `../STATUS.md`
+The app uses the unified Convex schema with these key tables:
 
-## 🤝 Related Apps
+- **routes** - Child-driver assignments with AM/PM periods
+- **children** - Full child records (firstName, lastName, addresses, medical info)
+- **drivers** - Full driver records (firstName, lastName, performance metrics)
+- **parents** - Parent contact information
+- **auditLogs** - Compliance and reporting
+- **dispatchEvents** - Cross-app event sync
 
-- **POC Web App** (`../src/`) - Original proof of concept
-- **Driver Mobile App** (`/cab-driver-mobile-dash/`) - Driver route viewing app
+## Development Tips
 
-All three apps share the same Convex backend for real-time synchronization!
+### Hot Reloading
+- Code changes trigger automatic reload
+- Convex queries update in real-time
+- No need to manually refresh
 
----
+### Testing Real-Time Sync
+1. Open app on multiple devices/simulators
+2. Make a change on one device
+3. See instant update on other devices
+4. Works with POC app too!
 
-**Status:** 🟡 In Development (Phase 1 Complete)  
-**Last Updated:** October 24, 2025  
-**Next:** Implement calendar navigation (Phase 2)
+### Debugging
+- Press `j` in Expo to open DevTools
+- Check Convex logs: `npx convex logs` (from root)
+- View Convex data: `npx convex dashboard` (from root)
 
+### Common Issues
+
+**Build Error: Cannot resolve Convex types**
+→ Re-copy `_generated` directory (see "Schema Changes" above)
+
+**App shows old data**
+→ Clear cache: `npx expo start --clear`
+
+**Convex connection fails**
+→ Check `.env.local` has correct `EXPO_PUBLIC_CONVEX_URL`
+→ Verify `npx convex dev` is running in Terminal 1
+
+## Dependencies
+
+Key packages:
+- `expo` - React Native framework
+- `expo-router` - File-based navigation
+- `convex` - Real-time backend client
+- `react-native-calendars` - Calendar components
+- `@expo/vector-icons` - Icon library
+
+## Build for Production
+
+```bash
+# iOS
+npx expo build:ios
+
+# Android
+npx expo build:android
+
+# Web (yes, Expo can build for web too!)
+npx expo build:web
+```
+
+## Related Documentation
+
+- [PHASE1_COMPLETE.md](../PHASE1_COMPLETE.md) - Unified Convex integration
+- [PHASE2_COMPLETE.md](../PHASE2_COMPLETE.md) - Calendar UI implementation
+- [CLAUDE.md](../CLAUDE.md) - Full project documentation

@@ -4,40 +4,82 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-Go Happy Cab Demo - A real-time scheduling system for child transportation management with calendar-based assignment tracking. Built with React + Vite frontend and Convex real-time backend.
+Go Happy Cab Demo - A real-time scheduling system for child transportation management with calendar-based assignment tracking. 
+
+**Two Apps Sharing Unified Convex Backend:**
+- **POC App** (React + Vite) - Original demo at root, web-based dispatch interface
+- **Dispatch App** (React Native + Expo) - Mobile-first dispatch app in `dispatch-app/`
+
+Both apps connect to the same Convex deployment: `colorful-wildcat-524.convex.cloud`
 
 ## Development Commands
 
+### POC App (Vite)
 ```bash
-# Start development (requires two terminals)
-npx convex dev        # Terminal 1: Convex backend sync
-npm run dev           # Terminal 2: Vite dev server
+# Terminal 1: Convex backend sync (shared by both apps)
+npx convex dev
+
+# Terminal 2: Vite dev server
+npm run dev           # Runs on localhost:5173
 
 # Build and preview
 npm run build
 npm run preview
+```
 
-# Convex operations
+### Dispatch App (Expo)
+```bash
+# Terminal 1: Convex backend sync (if not already running)
+npx convex dev
+
+# Terminal 2: Expo dev server
+cd dispatch-app
+npx expo start        # Press 'i' for iOS, 'a' for Android
+```
+
+### Convex Operations
+```bash
 npx convex run seed:seedData              # Seed initial data
 npx convex dashboard                      # Open Convex dashboard
-npx convex logs                          # Stream live logs
-npx convex run <function>                # Run specific function
+npx convex logs                           # Stream live logs
+npx convex run <function>                 # Run specific function
 ```
+
+### Important: Updating Dispatch App After Schema Changes
+
+**If you modify the Convex schema**, you must re-copy the generated types to dispatch-app:
+
+```bash
+cd dispatch-app/convex
+rm -rf _generated
+cp -r ../../convex/_generated .
+```
+
+This is required because Metro bundler (Expo's bundler) needs a local copy of the types and doesn't follow symlinks well.
 
 ## Architecture Overview
 
-### Frontend Stack
+### POC App Frontend (Vite)
 - **React 18** with Vite bundler for fast HMR
 - **@dnd-kit** for drag-and-drop interactions with touch support
 - **react-calendar** for date navigation and scheduling UI
 - **TailwindCSS** for styling
 - Local state managed via React hooks, synced with Convex
 
-### Backend (Convex)
+### Dispatch App Frontend (Expo)
+- **React Native** with Expo Router for navigation
+- **react-native-calendars** for month/date selection
+- Touch-optimized native components (no web components)
+- AM/PM period tabs for route management
+- Real-time Convex sync via hooks in `hooks/useConvexRoutes.ts`
+- Components: MonthCalendar, DateNavigator, AssignmentScreen
+
+### Backend (Convex) - Unified for Both Apps
 - Real-time database with reactive queries
 - Automatic TypeScript type generation from schema
 - WebSocket-based live synchronization
 - Built-in audit logging for all mutations
+- Deployment: `colorful-wildcat-524.convex.cloud`
 
 ### Data Flow
 1. UI components use `useQuery` hooks for reactive data fetching
