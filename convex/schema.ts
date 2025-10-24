@@ -48,7 +48,7 @@ export default defineSchema({
   // Audit log for tracking changes
   auditLog: defineTable({
     timestamp: v.number(),
-    action: v.string(), // "created", "updated", "deleted"
+    action: v.string(), // "created", "updated", "deleted", "bulk_copied"
     entityType: v.string(), // "assignment", "child", "driver"
     entityId: v.string(),
     details: v.object({
@@ -56,6 +56,8 @@ export default defineSchema({
       period: v.optional(v.string()),
       childName: v.optional(v.string()),
       driverName: v.optional(v.string()),
+      count: v.optional(v.string()), // For bulk operations
+      fromDate: v.optional(v.string()), // For copy operations
     }),
     user: v.optional(v.string()),
   }).index("by_timestamp", ["timestamp"]),
