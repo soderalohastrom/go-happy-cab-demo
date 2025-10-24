@@ -261,6 +261,26 @@ export const create = mutation({
       user
     ));
 
+    // Create dispatch event for real-time sync to Driver App
+    await ctx.db.insert("dispatchEvents", {
+      eventId: `DE-${Date.now()}-${Math.random().toString(36).substr(2, 6)}`,
+      type: "route_created",
+      routeId: assignmentId,
+      childId,
+      driverId,
+      eventData: { 
+        date, 
+        period, 
+        status,
+        childName: `${child?.firstName || ""} ${child?.lastName || "Unknown"}`.trim(),
+        driverName: `${driver?.firstName || ""} ${driver?.lastName || "Unknown"}`.trim(),
+      },
+      triggerSms: false,
+      triggeredBy: user || "system",
+      timestamp: new Date().toISOString(),
+      createdAt: new Date().toISOString(),
+    });
+
     return assignmentId;
   },
 });
@@ -377,6 +397,26 @@ export const remove = mutation({
       },
       args.user
     ));
+
+    // Create dispatch event for real-time sync to Driver App
+    await ctx.db.insert("dispatchEvents", {
+      eventId: `DE-${Date.now()}-${Math.random().toString(36).substr(2, 6)}`,
+      type: "schedule_changed", // route deletion is a schedule change
+      routeId: args.id,
+      childId: assignment.childId,
+      driverId: assignment.driverId,
+      eventData: { 
+        action: "deleted",
+        date: assignment.date, 
+        period: assignment.period,
+        childName: `${child?.firstName || ""} ${child?.lastName || "Unknown"}`.trim(),
+        driverName: `${driver?.firstName || ""} ${driver?.lastName || "Unknown"}`.trim(),
+      },
+      triggerSms: false,
+      triggeredBy: args.user || "system",
+      timestamp: new Date().toISOString(),
+      createdAt: new Date().toISOString(),
+    });
 
     return args.id;
   },

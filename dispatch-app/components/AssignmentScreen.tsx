@@ -145,6 +145,23 @@ export default function AssignmentScreen({ date }: AssignmentScreenProps) {
                 {route.scheduledTime && (
                   <Text style={styles.timeText}>⏰ {route.scheduledTime}</Text>
                 )}
+                
+                {/* Status Indicators - Real-time updates from Driver App */}
+                {route.status === 'completed' && (
+                  <View style={styles.statusBadge}>
+                    <Text style={styles.statusBadgeCompleted}>✅ Picked up</Text>
+                  </View>
+                )}
+                {route.status === 'no_show' && (
+                  <View style={styles.statusBadge}>
+                    <Text style={styles.statusBadgeNoShow}>❌ No-show</Text>
+                  </View>
+                )}
+                {route.status === 'cancelled' && (
+                  <View style={styles.statusBadge}>
+                    <Text style={styles.statusBadgeCancelled}>🔔 Pre-cancelled</Text>
+                  </View>
+                )}
               </View>
               <TouchableOpacity
                 style={styles.removeButton}
@@ -346,6 +363,39 @@ const styles = StyleSheet.create({
   timeText: {
     fontSize: 12,
     color: '#666',
+  },
+  statusBadge: {
+    marginTop: 4,
+  },
+  statusBadgeCompleted: {
+    fontSize: 10,
+    fontWeight: '600',
+    color: '#4CAF50',
+    backgroundColor: '#E8F5E9',
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 4,
+    overflow: 'hidden',
+  },
+  statusBadgeNoShow: {
+    fontSize: 10,
+    fontWeight: '600',
+    color: '#F44336',
+    backgroundColor: '#FFEBEE',
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 4,
+    overflow: 'hidden',
+  },
+  statusBadgeCancelled: {
+    fontSize: 10,
+    fontWeight: '600',
+    color: '#FF9800',
+    backgroundColor: '#FFF3E0',
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 4,
+    overflow: 'hidden',
   },
   removeButton: {
     width: 32,

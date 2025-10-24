@@ -11,6 +11,7 @@
 import type * as assignments from "../assignments.js";
 import type * as children from "../children.js";
 import type * as clearData from "../clearData.js";
+import type * as driverActions from "../driverActions.js";
 import type * as drivers from "../drivers.js";
 import type * as seed from "../seed.js";
 
@@ -32,6 +33,7 @@ declare const fullApi: ApiFromModules<{
   assignments: typeof assignments;
   children: typeof children;
   clearData: typeof clearData;
+  driverActions: typeof driverActions;
   drivers: typeof drivers;
   seed: typeof seed;
 }>;

@@ -113,3 +113,42 @@ export function getRelativeDate(daysOffset: number): string {
   return date.toISOString().split('T')[0];
 }
 
+// =============================================================================
+// Dispatch Events - Real-time Sync with Driver App
+// =============================================================================
+
+/**
+ * Get all events for a specific route
+ * Shows event history: when driver marked pickup, when dispatcher created route, etc.
+ */
+export function useRouteEvents(routeId?: Id<"routes">) {
+  return useQuery(
+    api.dispatchEvents.getForRoute,
+    routeId ? { routeId } : "skip"
+  );
+}
+
+/**
+ * Get recent dispatch events across all resources
+ * Useful for real-time monitoring dashboard
+ */
+export function useRecentEvents(limit?: number) {
+  return useQuery(api.dispatchEvents.getRecent, { limit });
+}
+
+/**
+ * Get events by type (e.g., "status_changed")
+ * Useful for filtering specific event types
+ */
+export function useEventsByType(eventType: string, limit?: number) {
+  return useQuery(api.dispatchEvents.getByType, { eventType, limit });
+}
+
+/**
+ * Get all events for a specific date
+ * Shows all activity for a given day
+ */
+export function useEventsForDate(date: string) {
+  return useQuery(api.dispatchEvents.getForDate, { date });
+}
+
