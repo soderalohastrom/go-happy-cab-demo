@@ -36,11 +36,19 @@
   4. Missing `updatedAt` field (added ISO string)
 - ✅ Tested "Copy Previous Day's Schedule" - **25 routes copied successfully**
 
-**Next: Driver App Integration**
-- 🚧 Update to unified Convex deployment
-- 🚧 Retrofit core features: Today's routes + 3-button system
-- 🚧 Remove unnecessary features (badges, etc.)
-- 🚧 Test bidirectional real-time sync
+**Driver App Integration - Phase 1 (In Progress):**
+- ✅ Updated `.env.local` to unified Convex deployment
+- ✅ Copied `_generated` types from unified schema
+- ✅ Fixed 3 schema compatibility errors:
+  1. `drivers:getDrivers` → `drivers:listAll`
+  2. Removed badges queries (system eliminated)
+  3. Removed badges UI (not in scope)
+- ✅ Added connection test in routes screen
+- 🚧 **BLOCKED:** One persistent audit log entry missing `complianceFlags` fields
+- 🚧 **HANDOFF:** Created comprehensive docs for Driver App team (separate Cursor instance)
+  - Location: `/Users/soderstrom/generated_repos/spec-kit-expo-router/cab-driver-mobile-dash/HANDOFF_FROM_DISPATCH_TEAM.md`
+  - Instructions: Delete audit log `j575bq3hwgqpghhw7atfpy9s3d7t2929` via Convex Dashboard
+  - Then: Complete Phase 1 testing, move to Phase 2 (real routes)
 
 ## Tech Stack
 
