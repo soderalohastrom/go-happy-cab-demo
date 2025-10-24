@@ -87,6 +87,18 @@ npm run preview
 
 ## Next Steps
 
+### Migration to React Native Expo Router
+**See `MIGRATION_SPEC.md` for complete plan**
+
+The POC has proven the concept successfully. Next phase: Convert to mobile-first React Native Expo Router app for:
+- ✅ Touch-optimized drag-and-drop for dispatcher
+- ✅ Native iOS/Android apps + Web platform
+- ✅ Shared Convex backend with driver mobile app
+- ✅ Real-time sync and push notifications
+
+**Migration Approach:** Create `dispatch-app/` subdirectory, preserve POC as reference
+
+### Future POC Enhancements (if staying web-only)
 - [ ] Consider adding user authentication
 - [ ] Implement bulk assignment creation UI
 - [ ] Add CSV export for reporting
