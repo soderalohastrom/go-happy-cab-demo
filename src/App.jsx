@@ -1,4 +1,6 @@
 import { useState, useMemo } from 'react';
+import { useQuery, useMutation } from 'convex/react';
+import { api } from '../convex/_generated/api';
 import {
   DndContext,
   closestCenter,
@@ -9,52 +11,38 @@ import {
   useDraggable,
   useDroppable,
 } from '@dnd-kit/core';
+import DateNavigator from './components/DateNavigator';
 import './index.css';
 
 function PairingUI() {
-  const [activeTab, setActiveTab] = useState('AM');
-  const [sortBy, setSortBy] = useState('child');
-  
-  const [state, setState] = useState({
-    AM: {
-      paired: [
-        { id: 'p1', childId: 'c1', childName: 'Kai Moreira', driverId: 'd1', driverName: 'John Kaeo' },
-        { id: 'p2', childId: 'c2', childName: 'Lani Lopes', driverId: 'd3', driverName: 'David Reeves' },
-        { id: 'p3', childId: 'c3', childName: 'Hilo Jeffries', driverId: 'd2', driverName: 'Marie Wong' },
-        { id: 'p4', childId: 'c7', childName: 'Aloha Santiago', driverId: 'd5', driverName: 'Sarah Torres' },
-        { id: 'p5', childId: 'c8', childName: 'Nalani King', driverId: 'd4', driverName: 'Miguel Cruz' },
-      ],
-      unpaired: {
-        children: [
-          { id: 'c4', name: 'Malia Pacheco' },
-          { id: 'c9', name: 'Keoni Santos' },
-        ],
-        drivers: [
-          { id: 'd6', name: 'Brandon Liu' },
-          { id: 'd7', name: 'Aisha Mohammed' },
-        ],
-      },
-    },
-    PM: {
-      paired: [
-        { id: 'pp1', childId: 'c1', childName: 'Kai Moreira', driverId: 'd2', driverName: 'Marie Wong' },
-        { id: 'pp2', childId: 'c2', childName: 'Lani Lopes', driverId: 'd1', driverName: 'John Kaeo' },
-        { id: 'pp3', childId: 'c3', childName: 'Hilo Jeffries', driverId: 'd5', driverName: 'Sarah Torres' },
-        { id: 'pp4', childId: 'c7', childName: 'Aloha Santiago', driverId: 'd3', driverName: 'David Reeves' },
-      ],
-      unpaired: {
-        children: [
-          { id: 'c6', name: 'Nalani King' },
-          { id: 'c10', name: 'Ikaika Brown' },
-        ],
-        drivers: [
-          { id: 'd4', name: 'Miguel Cruz' },
-          { id: 'd7', name: 'Aisha Mohammed' },
-        ],
-      },
-    },
+  // Date state - default to today
+  const [selectedDate, setSelectedDate] = useState(() => {
+    return new Date().toISOString().split('T')[0];
   });
 
+  const [activeTab, setActiveTab] = useState('AM');
+  const [sortBy, setSortBy] = useState('child');
+
+  // Convex queries
+  const allChildren = useQuery(api.children.list) || [];
+  const allDrivers = useQuery(api.drivers.list) || [];
+  const unassignedChildren = useQuery(api.assignments.getUnassignedChildren, {
+    date: selectedDate,
+    period: activeTab,
+  }) || [];
+  const unassignedDrivers = useQuery(api.assignments.getUnassignedDrivers, {
+    date: selectedDate,
+    period: activeTab,
+  }) || [];
+  const assignmentsData = useQuery(api.assignments.getForDate, { date: selectedDate });
+  const calendarData = useQuery(api.assignments.getForDateRange, {
+    startDate: getMonthStart(selectedDate),
+    endDate: getMonthEnd(selectedDate),
+  }) || {};
+
+  // Convex mutations
+  const createAssignment = useMutation(api.assignments.create);
+  const removeAssignment = useMutation(api.assignments.remove);
 
   const sensors = useSensors(
     useSensor(TouchSensor, {
@@ -67,28 +55,28 @@ function PairingUI() {
     })
   );
 
-  const currentData = state[activeTab];
+  const currentAssignments = assignmentsData?.[activeTab] || [];
 
   const sortedUnpairedChildren = useMemo(
-    () => [...currentData.unpaired.children].sort((a, b) => a.name.localeCompare(b.name)),
-    [currentData.unpaired.children]
+    () => [...unassignedChildren].sort((a, b) => a.name.localeCompare(b.name)),
+    [unassignedChildren]
   );
 
   const sortedUnpairedDrivers = useMemo(
-    () => [...currentData.unpaired.drivers].sort((a, b) => a.name.localeCompare(b.name)),
-    [currentData.unpaired.drivers]
+    () => [...unassignedDrivers].sort((a, b) => a.name.localeCompare(b.name)),
+    [unassignedDrivers]
   );
 
   const sortedPaired = useMemo(() => {
-    const sorted = [...currentData.paired];
+    const sorted = [...currentAssignments];
     if (sortBy === 'child') {
       return sorted.sort((a, b) => a.childName.localeCompare(b.childName));
     } else {
       return sorted.sort((a, b) => a.driverName.localeCompare(b.driverName));
     }
-  }, [currentData.paired, sortBy]);
+  }, [currentAssignments, sortBy]);
 
-  const handleDragEnd = (event) => {
+  const handleDragEnd = async (event) => {
     const { active, over } = event;
 
     if (!over) return;
@@ -98,95 +86,59 @@ function PairingUI() {
 
     // Child dragged onto Driver
     if (type === 'child' && overType === 'driver') {
-      const child = currentData.unpaired.children.find(c => c.id === id);
-      const driver = currentData.unpaired.drivers.find(d => d.id === overId);
-      
+      const child = unassignedChildren.find((c) => c._id === id);
+      const driver = unassignedDrivers.find((d) => d._id === overId);
+
       if (child && driver) {
-        const updatedUnpaired = {
-          ...currentData.unpaired,
-          children: currentData.unpaired.children.filter(c => c.id !== id),
-          drivers: currentData.unpaired.drivers.filter(d => d.id !== overId),
-        };
-
-        const newPairing = {
-          id: `p-${activeTab}-${Date.now()}`,
-          childId: child.id,
-          childName: child.name,
-          driverId: driver.id,
-          driverName: driver.name,
-        };
-
-        setState({
-          ...state,
-          [activeTab]: {
-            ...currentData,
-            paired: [...currentData.paired, newPairing],
-            unpaired: updatedUnpaired,
-          },
-        });
+        try {
+          await createAssignment({
+            date: selectedDate,
+            period: activeTab,
+            childId: child._id,
+            driverId: driver._id,
+            status: 'scheduled',
+          });
+        } catch (error) {
+          console.error('Failed to create assignment:', error);
+          alert(error.message || 'Failed to create assignment');
+        }
       }
     }
 
     // Driver dragged onto Child
     if (type === 'driver' && overType === 'child') {
-      const driver = currentData.unpaired.drivers.find(d => d.id === id);
-      const child = currentData.unpaired.children.find(c => c.id === overId);
-      
+      const driver = unassignedDrivers.find((d) => d._id === id);
+      const child = unassignedChildren.find((c) => c._id === overId);
+
       if (driver && child) {
-        const updatedUnpaired = {
-          ...currentData.unpaired,
-          children: currentData.unpaired.children.filter(c => c.id !== overId),
-          drivers: currentData.unpaired.drivers.filter(d => d.id !== id),
-        };
-
-        const newPairing = {
-          id: `p-${activeTab}-${Date.now()}`,
-          childId: child.id,
-          childName: child.name,
-          driverId: driver.id,
-          driverName: driver.name,
-        };
-
-        setState({
-          ...state,
-          [activeTab]: {
-            ...currentData,
-            paired: [...currentData.paired, newPairing],
-            unpaired: updatedUnpaired,
-          },
-        });
+        try {
+          await createAssignment({
+            date: selectedDate,
+            period: activeTab,
+            childId: child._id,
+            driverId: driver._id,
+            status: 'scheduled',
+          });
+        } catch (error) {
+          console.error('Failed to create assignment:', error);
+          alert(error.message || 'Failed to create assignment');
+        }
       }
     }
   };
 
-  const handleUnpair = (pairing) => {
-    const childExists = currentData.unpaired.children.some(c => c.id === pairing.childId);
-    const driverExists = currentData.unpaired.drivers.some(d => d.id === pairing.driverId);
-
-    const unpairedChildren = childExists
-      ? currentData.unpaired.children
-      : [...currentData.unpaired.children, { id: pairing.childId, name: pairing.childName }];
-
-    const unpairedDrivers = driverExists
-      ? currentData.unpaired.drivers
-      : [...currentData.unpaired.drivers, { id: pairing.driverId, name: pairing.driverName }];
-
-    setState({
-      ...state,
-      [activeTab]: {
-        ...currentData,
-        paired: currentData.paired.filter(p => p.id !== pairing.id),
-        unpaired: {
-          children: unpairedChildren,
-          drivers: unpairedDrivers,
-        },
-      },
-    });
+  const handleUnpair = async (assignment) => {
+    try {
+      await removeAssignment({ id: assignment._id });
+    } catch (error) {
+      console.error('Failed to remove assignment:', error);
+      alert('Failed to remove assignment');
+    }
   };
 
   const DraggableChild = ({ child }) => {
     const { attributes, listeners, setNodeRef, isDragging } = useDraggable({
-      id: `child-${child.id}`,
+      id: `child-${child._id}`,
     });
 
     return (
@@ -211,7 +163,7 @@ function PairingUI() {
 
   const DraggableDriver = ({ driver }) => {
     const { attributes, listeners, setNodeRef, isDragging } = useDraggable({
-      id: `driver-${driver.id}`,
+      id: `driver-${driver._id}`,
     });
 
     return (
@@ -240,14 +192,29 @@ function PairingUI() {
     });
 
     return (
-      <div 
-        ref={setNodeRef} 
+      <div
+        ref={setNodeRef}
         className={`space-y-3 transition ${isOver ? 'bg-indigo-50 p-2 rounded' : ''}`}
       >
         {children}
       </div>
     );
   };
+
+  // Show loading state
+  if (!assignmentsData || !allChildren || !allDrivers) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-50 p-4 flex items-center justify-center">
+        <div className="text-center">
+          <div className="text-4xl mb-4">⏱️</div>
+          <div className="text-xl font-semibold text-gray-700">Loading...</div>
+          <div className="text-sm text-gray-500 mt-2">
+            Connecting to Convex database
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <DndContext
@@ -257,18 +224,27 @@ function PairingUI() {
     >
       <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-50 p-4">
         <div className="max-w-7xl mx-auto">
-          
           {/* Header */}
-          <div className="mb-8">
+          <div className="mb-6">
             <h1 className="text-4xl font-bold text-gray-900 mb-2">
               ⏱️ Go Happy Cab - Daily Route Manager
             </h1>
-            <p className="text-gray-600">Manage AM and PM route pairings. Drag unpaired children to drivers or vice versa.</p>
+            <p className="text-gray-600">
+              Schedule and manage child-driver assignments. Select a date and drag children to
+              drivers.
+            </p>
           </div>
+
+          {/* Date Navigator */}
+          <DateNavigator
+            selectedDate={selectedDate}
+            onDateChange={setSelectedDate}
+            assignmentCounts={calendarData}
+          />
 
           {/* Tab Navigation */}
           <div className="flex gap-4 mb-8">
-            {['AM', 'PM'].map(tab => (
+            {['AM', 'PM'].map((tab) => (
               <button
                 key={tab}
                 onClick={() => setActiveTab(tab)}
@@ -285,10 +261,8 @@ function PairingUI() {
 
           {/* Main Layout */}
           <div className="space-y-6">
-            
             {/* Top Row: Children & Drivers */}
             <div className="grid grid-cols-2 gap-6">
-              
               {/* LEFT: Unpaired Children */}
               <div className="bg-white rounded-lg shadow-md p-6">
                 <h2 className="text-xl font-bold text-gray-800 mb-4">
@@ -297,10 +271,12 @@ function PairingUI() {
                 <p className="text-xs text-gray-500 mb-4">Sorted alphabetically</p>
                 <DroppableZone id="children-zone">
                   {sortedUnpairedChildren.length === 0 ? (
-                    <p className="text-gray-400 text-sm italic">All children assigned! 🎉</p>
+                    <p className="text-gray-400 text-sm italic">
+                      All children assigned! 🎉
+                    </p>
                   ) : (
-                    sortedUnpairedChildren.map(child => (
-                      <DraggableChild key={child.id} child={child} />
+                    sortedUnpairedChildren.map((child) => (
+                      <DraggableChild key={child._id} child={child} />
                     ))
                   )}
                 </DroppableZone>
@@ -314,10 +290,12 @@ function PairingUI() {
                 <p className="text-xs text-gray-500 mb-4">Sorted alphabetically</p>
                 <DroppableZone id="drivers-zone">
                   {sortedUnpairedDrivers.length === 0 ? (
-                    <p className="text-gray-400 text-sm italic">All drivers assigned! 🎉</p>
+                    <p className="text-gray-400 text-sm italic">
+                      All drivers assigned! 🎉
+                    </p>
                   ) : (
-                    sortedUnpairedDrivers.map(driver => (
-                      <DraggableDriver key={driver.id} driver={driver} />
+                    sortedUnpairedDrivers.map((driver) => (
+                      <DraggableDriver key={driver._id} driver={driver} />
                     ))
                   )}
                 </DroppableZone>
@@ -362,11 +340,13 @@ function PairingUI() {
               </p>
               <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 max-h-[600px] overflow-y-auto">
                 {sortedPaired.length === 0 ? (
-                  <p className="text-gray-400 text-sm italic col-span-full">No active routes for this period</p>
+                  <p className="text-gray-400 text-sm italic col-span-full">
+                    No active routes for this period
+                  </p>
                 ) : (
-                  sortedPaired.map(pairing => (
+                  sortedPaired.map((pairing) => (
                     <div
-                      key={pairing.id}
+                      key={pairing._id}
                       className="bg-gradient-to-r from-green-50 to-emerald-50 border-2 border-green-400 rounded-lg p-4 transition-all duration-300 ease-in-out"
                     >
                       <div className="flex items-start justify-between mb-2">
@@ -398,19 +378,47 @@ function PairingUI() {
           <div className="mt-8 bg-indigo-50 border border-indigo-200 rounded-lg p-4">
             <h3 className="font-bold text-indigo-900 mb-2">How to use:</h3>
             <ul className="text-sm text-indigo-800 space-y-1 ml-4 list-disc">
-              <li><strong>Switch routes:</strong> Click AM or PM tabs to view/edit each period independently</li>
-              <li><strong>Create pairing:</strong> Drag a child to a driver (or drag a driver to a child)</li>
-              <li><strong>Sort routes:</strong> Click "Child" or "Driver" to sort active routes alphabetically by that field</li>
-              <li><strong>Unzip pairing:</strong> Click trash icon to return child and driver to unpaired columns</li>
-              <li><strong>Mobile friendly:</strong> Use finger drag on mobile devices!</li>
-              <li><strong>Notifications:</strong> All changes trigger alerts to assigned drivers via their app</li>
-              <li><strong>Audit log:</strong> All pairing changes are recorded with timestamp and manager name</li>
+              <li>
+                <strong>Select date:</strong> Use calendar or prev/next buttons to choose a date
+              </li>
+              <li>
+                <strong>Switch routes:</strong> Click AM or PM tabs to view/edit each period
+              </li>
+              <li>
+                <strong>Create pairing:</strong> Drag a child to a driver (or drag a driver to a
+                child)
+              </li>
+              <li>
+                <strong>Sort routes:</strong> Click "Child" or "Driver" to sort active routes
+              </li>
+              <li>
+                <strong>Unzip pairing:</strong> Click trash icon to remove assignment
+              </li>
+              <li>
+                <strong>Calendar view:</strong> Numbers show assignment counts (orange=AM,
+                blue=PM)
+              </li>
             </ul>
           </div>
         </div>
       </div>
     </DndContext>
   );
+}
+
+// Helper functions for date range calculation
+function getMonthStart(dateStr) {
+  const date = new Date(dateStr);
+  const year = date.getFullYear();
+  const month = date.getMonth();
+  return new Date(year, month, 1).toISOString().split('T')[0];
+}
+
+function getMonthEnd(dateStr) {
+  const date = new Date(dateStr);
+  const year = date.getFullYear();
+  const month = date.getMonth();
+  return new Date(year, month + 1, 0).toISOString().split('T')[0];
 }
 
 export default PairingUI;
