@@ -209,6 +209,7 @@ export const create = mutation({
     const assignmentId = await ctx.db.insert("routes", {
       date,
       period,
+      type: period === "AM" ? "pickup" : "dropoff",
       childId,
       driverId,
       status,
@@ -282,6 +283,7 @@ export const copyFromPreviousDay = mutation({
       await ctx.db.insert("routes", {
         date: args.targetDate,
         period: assignment.period,
+        type: assignment.period === "AM" ? "pickup" : "dropoff",
         childId: assignment.childId,
         driverId: assignment.driverId,
         status: "scheduled",
@@ -442,6 +444,7 @@ export const copyFromDate = mutation({
           const newId = await ctx.db.insert("routes", {
             date: toDate,
             period: source.period,
+            type: source.period === "AM" ? "pickup" : "dropoff",
             childId: source.childId,
             driverId: source.driverId,
             status: "scheduled",
