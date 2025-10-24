@@ -227,6 +227,70 @@ export const create = mutation({
   },
 });
 
+// Copy assignments from previous day
+export const copyFromPreviousDay = mutation({
+  args: { targetDate: v.string() },
+  handler: async (ctx, args) => {
+    // Get the previous day's date
+    const targetDateObj = new Date(args.targetDate);
+    targetDateObj.setDate(targetDateObj.getDate() - 1);
+    const previousDate = targetDateObj.toISOString().split('T')[0];
+
+    // Get all assignments from previous day
+    const previousAssignments = await ctx.db
+      .query("assignments")
+      .withIndex("by_date", (q) => q.eq("date", previousDate))
+      .collect();
+
+    if (previousAssignments.length === 0) {
+      throw new Error("No assignments found for previous day");
+    }
+
+    // Check if target date already has assignments
+    const existingAssignments = await ctx.db
+      .query("assignments")
+      .withIndex("by_date", (q) => q.eq("date", args.targetDate))
+      .first();
+
+    if (existingAssignments) {
+      throw new Error("This date already has assignments");
+    }
+
+    // Copy each assignment to the new date
+    let copiedCount = 0;
+    for (const assignment of previousAssignments) {
+      await ctx.db.insert("assignments", {
+        date: args.targetDate,
+        period: assignment.period,
+        childId: assignment.childId,
+        driverId: assignment.driverId,
+        status: "scheduled",
+        createdAt: Date.now(),
+      });
+      copiedCount++;
+    }
+
+    // Create audit log entry
+    await ctx.db.insert("auditLog", {
+      timestamp: Date.now(),
+      action: "bulk_copied",
+      entityType: "assignment",
+      entityId: `${copiedCount}_assignments`,
+      details: {
+        date: args.targetDate,
+        fromDate: previousDate,
+        count: copiedCount.toString(),
+      },
+      user: "system",
+    });
+
+    return {
+      message: `Successfully copied ${copiedCount} assignments from ${previousDate}`,
+      copied: copiedCount,
+    };
+  },
+});
+
 // Delete an assignment
 export const remove = mutation({
   args: {

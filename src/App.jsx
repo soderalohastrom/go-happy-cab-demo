@@ -43,6 +43,7 @@ function PairingUI() {
   // Convex mutations
   const createAssignment = useMutation(api.assignments.create);
   const removeAssignment = useMutation(api.assignments.remove);
+  const copyFromPreviousDay = useMutation(api.assignments.copyFromPreviousDay);
 
   const sensors = useSensors(
     useSensor(TouchSensor, {
@@ -81,13 +82,29 @@ function PairingUI() {
 
     if (!over) return;
 
-    const [type, id] = active.id.toString().split('-');
-    const [overType, overId] = over.id.toString().split('-');
+    // Parse the dragged item ID
+    const activeIdParts = active.id.toString().split('-');
+    const draggedType = activeIdParts[0]; // 'child' or 'driver'
+    const draggedId = activeIdParts.slice(1).join('-'); // Handle IDs with hyphens
+
+    // Parse the drop target ID
+    const overIdParts = over.id.toString().split('-');
+
+    // Check if it's a drop zone (format: "child-drop-{id}" or "driver-drop-{id}")
+    let targetType, targetId;
+    if (overIdParts[1] === 'drop') {
+      targetType = overIdParts[0]; // 'child' or 'driver'
+      targetId = overIdParts.slice(2).join('-');
+    } else {
+      // Handle old format for backwards compatibility
+      targetType = overIdParts[0];
+      targetId = overIdParts.slice(1).join('-');
+    }
 
     // Child dragged onto Driver
-    if (type === 'child' && overType === 'driver') {
-      const child = unassignedChildren.find((c) => c._id === id);
-      const driver = unassignedDrivers.find((d) => d._id === overId);
+    if (draggedType === 'child' && (targetType === 'driver' || targetType === 'driver-drop')) {
+      const child = unassignedChildren.find((c) => c._id === draggedId);
+      const driver = unassignedDrivers.find((d) => d._id === targetId);
 
       if (child && driver) {
         try {
@@ -106,9 +123,9 @@ function PairingUI() {
     }
 
     // Driver dragged onto Child
-    if (type === 'driver' && overType === 'child') {
-      const driver = unassignedDrivers.find((d) => d._id === id);
-      const child = unassignedChildren.find((c) => c._id === overId);
+    if (draggedType === 'driver' && (targetType === 'child' || targetType === 'child-drop')) {
+      const driver = unassignedDrivers.find((d) => d._id === draggedId);
+      const child = unassignedChildren.find((c) => c._id === targetId);
 
       if (driver && child) {
         try {
@@ -137,50 +154,76 @@ function PairingUI() {
   };
 
   const DraggableChild = ({ child }) => {
-    const { attributes, listeners, setNodeRef, isDragging } = useDraggable({
+    const { attributes, listeners, setNodeRef: dragRef, isDragging } = useDraggable({
       id: `child-${child._id}`,
     });
 
+    // Make child droppable for drivers
+    const { setNodeRef: dropRef, isOver } = useDroppable({
+      id: `child-drop-${child._id}`,
+    });
+
+    // Combine both refs
+    const combinedRef = (el) => {
+      dragRef(el);
+      dropRef(el);
+    };
+
     return (
       <div
-        ref={setNodeRef}
+        ref={combinedRef}
         {...listeners}
         {...attributes}
-        className={`bg-rose-50 border-2 border-rose-300 p-3 rounded-lg cursor-move transition touch-none select-none ${
+        className={`bg-rose-50 border-2 p-3 rounded-lg cursor-move transition touch-none select-none ${
           isDragging
-            ? 'opacity-50 scale-95 bg-rose-100 shadow-lg'
-            : 'hover:bg-rose-100 hover:shadow-md'
+            ? 'opacity-50 scale-95 bg-rose-100 shadow-lg border-rose-400'
+            : isOver
+            ? 'bg-rose-200 border-rose-500 shadow-xl scale-105'
+            : 'border-rose-300 hover:bg-rose-100 hover:shadow-md'
         }`}
         style={{
           touchAction: 'none',
         }}
       >
-        <div className="font-semibold text-rose-900">↕️ {child.name}</div>
+        <div className="font-semibold text-rose-900">👧 {child.name}</div>
         <div className="text-xs text-rose-700 mt-1">📍 Needs driver</div>
       </div>
     );
   };
 
   const DraggableDriver = ({ driver }) => {
-    const { attributes, listeners, setNodeRef, isDragging } = useDraggable({
+    const { attributes, listeners, setNodeRef: dragRef, isDragging } = useDraggable({
       id: `driver-${driver._id}`,
     });
 
+    // Make driver droppable for children
+    const { setNodeRef: dropRef, isOver } = useDroppable({
+      id: `driver-drop-${driver._id}`,
+    });
+
+    // Combine both refs
+    const combinedRef = (el) => {
+      dragRef(el);
+      dropRef(el);
+    };
+
     return (
       <div
-        ref={setNodeRef}
+        ref={combinedRef}
         {...listeners}
         {...attributes}
-        className={`bg-blue-50 border-2 border-blue-300 p-3 rounded-lg cursor-move transition touch-none select-none ${
+        className={`bg-blue-50 border-2 p-3 rounded-lg cursor-move transition touch-none select-none ${
           isDragging
-            ? 'opacity-50 scale-95 bg-blue-100 shadow-lg'
-            : 'hover:bg-blue-100 hover:shadow-md'
+            ? 'opacity-50 scale-95 bg-blue-100 shadow-lg border-blue-400'
+            : isOver
+            ? 'bg-blue-200 border-blue-500 shadow-xl scale-105'
+            : 'border-blue-300 hover:bg-blue-100 hover:shadow-md'
         }`}
         style={{
           touchAction: 'none',
         }}
       >
-        <div className="font-semibold text-blue-900">↕️ {driver.name}</div>
+        <div className="font-semibold text-blue-900">🚗 {driver.name}</div>
         <div className="text-xs text-blue-700 mt-1">🚕 Available</div>
       </div>
     );
@@ -241,6 +284,36 @@ function PairingUI() {
             onDateChange={setSelectedDate}
             assignmentCounts={calendarData}
           />
+
+          {/* Copy from Previous Day Button - Show when no assignments exist */}
+          {assignmentsData && assignmentsData.AM.length === 0 && assignmentsData.PM.length === 0 && (
+            <div className="bg-yellow-50 border-2 border-yellow-300 rounded-lg p-4 mb-6">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-yellow-900 font-semibold">No assignments for {selectedDate}</p>
+                  <p className="text-yellow-700 text-sm mt-1">
+                    Start fresh or copy the standard routes from the previous day
+                  </p>
+                </div>
+                <button
+                  onClick={async () => {
+                    try {
+                      const result = await copyFromPreviousDay({
+                        targetDate: selectedDate
+                      });
+                      alert(result.message);
+                    } catch (error) {
+                      console.error('Copy failed:', error);
+                      alert(error.message || 'Failed to copy assignments from previous day');
+                    }
+                  }}
+                  className="bg-yellow-600 text-white px-4 py-2 rounded-lg hover:bg-yellow-700 transition font-semibold flex items-center gap-2"
+                >
+                  📋 Copy Previous Day's Routes
+                </button>
+              </div>
+            </div>
+          )}
 
           {/* Tab Navigation */}
           <div className="flex gap-4 mb-8">
