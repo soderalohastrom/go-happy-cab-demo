@@ -8,8 +8,8 @@ export const getForDatePeriod = query({
     period: v.string(),
   },
   handler: async (ctx, args) => {
-    const assignments = await ctx.db
-      .query("assignments")
+    const routes = await ctx.db
+      .query("routes")
       .withIndex("by_date_period", (q) =>
         q.eq("date", args.date).eq("period", args.period)
       )
@@ -17,14 +17,14 @@ export const getForDatePeriod = query({
 
     // Enrich with child and driver details
     const enriched = await Promise.all(
-      assignments.map(async (assignment) => {
-        const child = await ctx.db.get(assignment.childId);
-        const driver = await ctx.db.get(assignment.driverId);
+      routes.map(async (route) => {
+        const child = await ctx.db.get(route.childId);
+        const driver = await ctx.db.get(route.driverId);
 
         return {
-          ...assignment,
-          childName: child?.name || "Unknown",
-          driverName: driver?.name || "Unknown",
+          ...route,
+          childName: child ? `${child.firstName} ${child.lastName}` : "Unknown",
+          driverName: driver ? `${driver.firstName} ${driver.lastName}` : "Unknown",
         };
       })
     );
@@ -38,7 +38,7 @@ export const getForDate = query({
   args: { date: v.string() },
   handler: async (ctx, args) => {
     const assignments = await ctx.db
-      .query("assignments")
+      .query("routes")
       .withIndex("by_date", (q) => q.eq("date", args.date))
       .collect();
 
@@ -73,7 +73,7 @@ export const getForDateRange = query({
     endDate: v.string(),
   },
   handler: async (ctx, args) => {
-    const allAssignments = await ctx.db.query("assignments").collect();
+    const allAssignments = await ctx.db.query("routes").collect();
 
     // Filter by date range
     const filtered = allAssignments.filter(
@@ -113,7 +113,7 @@ export const getUnassignedChildren = query({
 
     // Get assignments for this date/period
     const assignments = await ctx.db
-      .query("assignments")
+      .query("routes")
       .withIndex("by_date_period", (q) =>
         q.eq("date", args.date).eq("period", args.period)
       )
@@ -142,7 +142,7 @@ export const getUnassignedDrivers = query({
 
     // Get assignments for this date/period
     const assignments = await ctx.db
-      .query("assignments")
+      .query("routes")
       .withIndex("by_date_period", (q) =>
         q.eq("date", args.date).eq("period", args.period)
       )
@@ -171,7 +171,7 @@ export const create = mutation({
 
     // Check if child is already assigned for this date/period
     const existingChildAssignment = await ctx.db
-      .query("assignments")
+      .query("routes")
       .withIndex("by_date_period_child", (q) =>
         q.eq("date", date).eq("period", period).eq("childId", childId)
       )
@@ -183,7 +183,7 @@ export const create = mutation({
 
     // Check if driver is already assigned for this date/period
     const existingDriverAssignment = await ctx.db
-      .query("assignments")
+      .query("routes")
       .withIndex("by_date_period_driver", (q) =>
         q.eq("date", date).eq("period", period).eq("driverId", driverId)
       )
@@ -198,7 +198,7 @@ export const create = mutation({
     const driver = await ctx.db.get(driverId);
 
     // Create the assignment
-    const assignmentId = await ctx.db.insert("assignments", {
+    const assignmentId = await ctx.db.insert("routes", {
       date,
       period,
       childId,
@@ -238,7 +238,7 @@ export const copyFromPreviousDay = mutation({
 
     // Get all assignments from previous day
     const previousAssignments = await ctx.db
-      .query("assignments")
+      .query("routes")
       .withIndex("by_date", (q) => q.eq("date", previousDate))
       .collect();
 
@@ -248,7 +248,7 @@ export const copyFromPreviousDay = mutation({
 
     // Check if target date already has assignments
     const existingAssignments = await ctx.db
-      .query("assignments")
+      .query("routes")
       .withIndex("by_date", (q) => q.eq("date", args.targetDate))
       .first();
 
@@ -259,7 +259,7 @@ export const copyFromPreviousDay = mutation({
     // Copy each assignment to the new date
     let copiedCount = 0;
     for (const assignment of previousAssignments) {
-      await ctx.db.insert("assignments", {
+      await ctx.db.insert("routes", {
         date: args.targetDate,
         period: assignment.period,
         childId: assignment.childId,
@@ -294,7 +294,7 @@ export const copyFromPreviousDay = mutation({
 // Delete an assignment
 export const remove = mutation({
   args: {
-    id: v.id("assignments"),
+    id: v.id("routes"),
     user: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
@@ -333,7 +333,7 @@ export const remove = mutation({
 // Update assignment status
 export const updateStatus = mutation({
   args: {
-    id: v.id("assignments"),
+    id: v.id("routes"),
     status: v.string(),
     user: v.optional(v.string()),
   },
@@ -384,14 +384,14 @@ export const copyFromDate = mutation({
     let sourceAssignments;
     if (period) {
       sourceAssignments = await ctx.db
-        .query("assignments")
+        .query("routes")
         .withIndex("by_date_period", (q) =>
           q.eq("date", fromDate).eq("period", period)
         )
         .collect();
     } else {
       sourceAssignments = await ctx.db
-        .query("assignments")
+        .query("routes")
         .withIndex("by_date", (q) => q.eq("date", fromDate))
         .collect();
     }
@@ -401,7 +401,7 @@ export const copyFromDate = mutation({
       sourceAssignments.map(async (source) => {
         // Check if assignment already exists
         const existing = await ctx.db
-          .query("assignments")
+          .query("routes")
           .withIndex("by_date_period_child", (q) =>
             q.eq("date", toDate).eq("period", source.period).eq("childId", source.childId)
           )
@@ -411,7 +411,7 @@ export const copyFromDate = mutation({
           const child = await ctx.db.get(source.childId);
           const driver = await ctx.db.get(source.driverId);
 
-          const newId = await ctx.db.insert("assignments", {
+          const newId = await ctx.db.insert("routes", {
             date: toDate,
             period: source.period,
             childId: source.childId,
