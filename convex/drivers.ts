@@ -120,7 +120,7 @@ export const get = query({
 // These will be re-implemented to match the full drivers schema (firstName, lastName, employeeId, etc.)
 
 // Deactivate a driver (soft delete)
-export const deactivate = mutation({
+export const deactivate = action({
   args: { id: v.id("drivers") },
   handler: async (ctx, args) => {
     await ctx.db.patch(args.id, { 
