@@ -58,6 +58,11 @@
 - ✅ Updated tab names (Dispatch | Reports)
 - ✅ **Result:** Dispatcher can drag children onto drivers to create routes!
 
+**🎯 Oct 25, 2025 - UX REFINEMENTS (Dispatcher Feedback):**
+- ✅ **Reordered layout** - Unassigned at top (15% need attention), paired routes at bottom (85% static)
+- ✅ **Fixed z-index** - Dragged cards now float on top of all elements (zIndex: 9999, elevation: 10)
+- ✅ **Sort toggle** - Alphabetical by child or driver for quick searching (find sick driver, locate child)
+
 **Oct 24, 2025 - Dispatch App Migration Complete:**
 - ✅ Created dispatch-app/ subdirectory with Expo Router
 - ✅ Built unified Convex schema (650+ lines) merging dispatch + driver needs
