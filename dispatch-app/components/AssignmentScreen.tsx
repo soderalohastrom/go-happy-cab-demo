@@ -31,6 +31,7 @@ interface AssignmentScreenProps {
 
 export default function AssignmentScreen({ date }: AssignmentScreenProps) {
   const [activePeriod, setActivePeriod] = useState<'AM' | 'PM'>('AM');
+  const [sortBy, setSortBy] = useState<'child' | 'driver'>('child');
   
   // Drop zone tracking for drag-and-drop
   const [dropZones, setDropZones] = useState<Map<string, { 
@@ -47,6 +48,15 @@ export default function AssignmentScreen({ date }: AssignmentScreenProps) {
   const createRoute = useCreateRoute();
   const copyFromPreviousDay = useCopyFromPreviousDay();
   const removeRoute = useRemoveRoute();
+  
+  // Sort routes alphabetically by child or driver
+  const sortedRoutes = routes ? [...routes].sort((a, b) => {
+    if (sortBy === 'child') {
+      return a.childName.localeCompare(b.childName);
+    } else {
+      return a.driverName.localeCompare(b.driverName);
+    }
+  }) : [];
   
   // Register drop zone positions for collision detection
   const handleRegisterDropZone = (
@@ -198,56 +208,6 @@ export default function AssignmentScreen({ date }: AssignmentScreenProps) {
         </View>
       )}
 
-      {/* Active Routes */}
-      {routes.length > 0 && (
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Scheduled Routes ({routes.length})</Text>
-          {routes.map((route) => (
-            <View key={route._id} style={styles.routeCard}>
-              <View style={styles.routeInfo}>
-                <View style={styles.routePair}>
-                  <View style={styles.person}>
-                    <Text style={styles.personIcon}>👧</Text>
-                    <Text style={styles.personName}>{route.childName}</Text>
-                  </View>
-                  <Text style={styles.arrow}>→</Text>
-                  <View style={styles.person}>
-                    <Text style={styles.personIcon}>🚗</Text>
-                    <Text style={styles.personName}>{route.driverName}</Text>
-                  </View>
-                </View>
-                {route.scheduledTime && (
-                  <Text style={styles.timeText}>⏰ {route.scheduledTime}</Text>
-                )}
-                
-                {/* Status Indicators - Real-time updates from Driver App */}
-                {route.status === 'completed' && (
-                  <View style={styles.statusBadge}>
-                    <Text style={styles.statusBadgeCompleted}>✅ Picked up</Text>
-                  </View>
-                )}
-                {route.status === 'no_show' && (
-                  <View style={styles.statusBadge}>
-                    <Text style={styles.statusBadgeNoShow}>❌ No-show</Text>
-                  </View>
-                )}
-                {route.status === 'cancelled' && (
-                  <View style={styles.statusBadge}>
-                    <Text style={styles.statusBadgeCancelled}>🔔 Pre-cancelled</Text>
-                  </View>
-                )}
-              </View>
-              <TouchableOpacity
-                style={styles.removeButton}
-                onPress={() => handleRemoveRoute(route._id)}
-              >
-                <Text style={styles.removeButtonText}>✕</Text>
-              </TouchableOpacity>
-            </View>
-          ))}
-        </View>
-      )}
-
       {/* Drag-and-Drop Pairing Zone: Side-by-side columns */}
       {(unassignedChildren.length > 0 || unassignedDrivers.length > 0) && (
         <View style={styles.pairingContainer}>
@@ -321,6 +281,77 @@ export default function AssignmentScreen({ date }: AssignmentScreenProps) {
               </ScrollView>
             </View>
           </View>
+        </View>
+      )}
+
+      {/* Paired Routes */}
+      {routes.length > 0 && (
+        <View style={styles.section}>
+          <View style={styles.sectionHeader}>
+            <Text style={styles.sectionTitle}>Scheduled Routes ({routes.length})</Text>
+            {/* Sort Toggle */}
+            <View style={styles.sortToggle}>
+              <TouchableOpacity
+                style={[styles.sortButton, sortBy === 'child' && styles.sortButtonActive]}
+                onPress={() => setSortBy('child')}
+              >
+                <Text style={[styles.sortButtonText, sortBy === 'child' && styles.sortButtonTextActive]}>
+                  By Child
+                </Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.sortButton, sortBy === 'driver' && styles.sortButtonActive]}
+                onPress={() => setSortBy('driver')}
+              >
+                <Text style={[styles.sortButtonText, sortBy === 'driver' && styles.sortButtonTextActive]}>
+                  By Driver
+                </Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+          {sortedRoutes.map((route) => (
+            <View key={route._id} style={styles.routeCard}>
+              <View style={styles.routeInfo}>
+                <View style={styles.routePair}>
+                  <View style={styles.person}>
+                    <Text style={styles.personIcon}>👧</Text>
+                    <Text style={styles.personName}>{route.childName}</Text>
+                  </View>
+                  <Text style={styles.arrow}>→</Text>
+                  <View style={styles.person}>
+                    <Text style={styles.personIcon}>🚗</Text>
+                    <Text style={styles.personName}>{route.driverName}</Text>
+                  </View>
+                </View>
+                {route.scheduledTime && (
+                  <Text style={styles.timeText}>⏰ {route.scheduledTime}</Text>
+                )}
+                
+                {/* Status Indicators - Real-time updates from Driver App */}
+                {route.status === 'completed' && (
+                  <View style={styles.statusBadge}>
+                    <Text style={styles.statusBadgeCompleted}>✅ Picked up</Text>
+                  </View>
+                )}
+                {route.status === 'no_show' && (
+                  <View style={styles.statusBadge}>
+                    <Text style={styles.statusBadgeNoShow}>❌ No-show</Text>
+                  </View>
+                )}
+                {route.status === 'cancelled' && (
+                  <View style={styles.statusBadge}>
+                    <Text style={styles.statusBadgeCancelled}>🔔 Pre-cancelled</Text>
+                  </View>
+                )}
+              </View>
+              <TouchableOpacity
+                style={styles.removeButton}
+                onPress={() => handleRemoveRoute(route._id)}
+              >
+                <Text style={styles.removeButtonText}>✕</Text>
+              </TouchableOpacity>
+            </View>
+          ))}
         </View>
       )}
 
@@ -420,11 +451,38 @@ const styles = StyleSheet.create({
     padding: 16,
     borderRadius: 12,
   },
+  sectionHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 12,
+  },
   sectionTitle: {
     fontSize: 18,
     fontWeight: 'bold',
     color: '#333',
-    marginBottom: 4,
+  },
+  sortToggle: {
+    flexDirection: 'row',
+    backgroundColor: '#F5F5F5',
+    borderRadius: 6,
+    padding: 2,
+  },
+  sortButton: {
+    paddingVertical: 6,
+    paddingHorizontal: 12,
+    borderRadius: 4,
+  },
+  sortButtonActive: {
+    backgroundColor: '#2196F3',
+  },
+  sortButtonText: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#666',
+  },
+  sortButtonTextActive: {
+    color: '#fff',
   },
   sectionHint: {
     fontSize: 12,

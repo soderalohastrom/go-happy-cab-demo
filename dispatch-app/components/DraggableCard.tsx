@@ -25,13 +25,13 @@ export function DraggableCard({ id, type, name, onDragEnd }: DraggableCardProps)
   const translateX = useSharedValue(0);
   const translateY = useSharedValue(0);
   const scale = useSharedValue(1);
-  const zIndex = useSharedValue(1);
+  const isDragging = useSharedValue(0);
 
   const panGesture = Gesture.Pan()
     .onStart(() => {
       // Scale up and bring to front during drag
       scale.value = withSpring(1.1);
-      zIndex.value = 1000;
+      isDragging.value = 1;
     })
     .onUpdate((e) => {
       translateX.value = e.translationX;
@@ -45,7 +45,7 @@ export function DraggableCard({ id, type, name, onDragEnd }: DraggableCardProps)
       translateX.value = withSpring(0);
       translateY.value = withSpring(0);
       scale.value = withSpring(1);
-      zIndex.value = 1;
+      isDragging.value = 0;
     });
 
   const animatedStyle = useAnimatedStyle(() => ({
@@ -54,7 +54,8 @@ export function DraggableCard({ id, type, name, onDragEnd }: DraggableCardProps)
       { translateY: translateY.value },
       { scale: scale.value },
     ],
-    zIndex: zIndex.value,
+    zIndex: isDragging.value === 1 ? 9999 : 1,
+    elevation: isDragging.value === 1 ? 10 : 3, // Android elevation
   }));
 
   const backgroundColor = type === 'child' ? '#FFF9C4' : '#BBDEFB';
