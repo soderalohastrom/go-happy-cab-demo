@@ -4,7 +4,10 @@
  * Main dispatch interface with AM/PM tabs, drag-and-drop pairing, and route management
  */
 
-import React, { useState } from 'react';
+import React, { 
+  useState, 
+  useRef 
+} from 'react';
 import { 
   StyleSheet, 
   View, 
@@ -33,6 +36,8 @@ interface AssignmentScreenProps {
 export default function AssignmentScreen({ date }: AssignmentScreenProps) {
   const [activePeriod, setActivePeriod] = useState<'AM' | 'PM'>('AM');
   const [sortBy, setSortBy] = useState<'child' | 'driver'>('child');
+  const wrapperRef = useRef<View>(null);
+  const [wrapperOffsetY, setWrapperOffsetY] = useState(0);
   
   // Drop zone tracking for drag-and-drop
   const [dropZones, setDropZones] = useState<Map<string, { 
@@ -79,13 +84,18 @@ export default function AssignmentScreen({ date }: AssignmentScreenProps) {
     }
   }) : [];
   
+  const handleWrapperLayout = () => {
+    wrapperRef.current?.measure((x, y, width, height, pageX, pageY) => {
+      setWrapperOffsetY(pageY);
+    });
+  };
+
   // Register drop zone positions for collision detection
   const handleRegisterDropZone = (
     id: string, 
     type: 'child' | 'driver', 
     layout: { x: number; y: number; width: number; height: number }
   ) => {
-    console.log(`📦 DROP ZONE REGISTERED: ${type} - y:${Math.round(layout.y)} h:${Math.round(layout.height)}`);
     setDropZones(prev => {
       const updated = new Map(prev);
       updated.set(id, { type, layout });
@@ -95,7 +105,6 @@ export default function AssignmentScreen({ date }: AssignmentScreenProps) {
   
   // Handle drag start - show overlay
   const handleDragStart = (id: string, type: 'child' | 'driver', name: string) => {
-    console.log('🎯 DRAG START:', { id, type, name });
     setDragState({
       isDragging: true,
       draggedId: id,
@@ -108,11 +117,6 @@ export default function AssignmentScreen({ date }: AssignmentScreenProps) {
   
   // Handle drag move - update overlay position and highlight valid drop zones
   const handleDragMove = (x: number, y: number) => {
-    // Log every 10th move to avoid spam
-    if (Math.random() < 0.1) {
-      console.log('📍 DRAG MOVE:', { x: Math.round(x), y: Math.round(y) });
-    }
-    
     setDragState(prev => ({ ...prev, x, y }));
     
     // Find which drop zone we're hovering over
@@ -131,11 +135,6 @@ export default function AssignmentScreen({ date }: AssignmentScreenProps) {
         }
       }
     });
-    
-    if (hoveredId !== hoveredDropZoneId) {
-      console.log('🎯 HOVER CHANGED:', hoveredId ? `Now over ${hoveredId}` : 'No longer over any zone');
-    }
-    
     setHoveredDropZoneId(hoveredId);
   };
   
@@ -243,7 +242,12 @@ export default function AssignmentScreen({ date }: AssignmentScreenProps) {
   const isEmpty = routes.length === 0;
 
   return (
-    <View style={styles.wrapper}>
+    <View 
+      style={styles.wrapper} 
+      ref={wrapperRef} 
+      onLayout={handleWrapperLayout} 
+      collapsable={false}
+    >
       <ScrollView style={styles.container}>
         {/* Period Tabs */}
       <View style={styles.tabsContainer}>
@@ -451,8 +455,9 @@ export default function AssignmentScreen({ date }: AssignmentScreenProps) {
       {/* Drag Overlay - renders at root level to float above all UI */}
       <DragOverlay
         isDragging={dragState.isDragging}
-        x={dragState.x}
-        y={dragState.y}
+        absoluteX={dragState.x}
+        absoluteY={dragState.y}
+        wrapperOffsetY={wrapperOffsetY}
         type={dragState.draggedType}
         name={dragState.draggedName}
       />
