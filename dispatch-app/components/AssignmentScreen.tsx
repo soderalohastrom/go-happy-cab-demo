@@ -109,13 +109,17 @@ export default function AssignmentScreen({ date }: AssignmentScreenProps) {
     setDragState(prev => ({ ...prev, x, y }));
     
     // Find which drop zone we're hovering over
+    // IMPORTANT: Adjust for overlay offset (overlay is at y - 60, so collision should check there)
+    const adjustedX = x - 85; // Center of overlay
+    const adjustedY = y - 60; // Top of overlay (where it visually appears)
+    
     let hoveredId: string | null = null;
     dropZones.forEach(({ type, layout }, id) => {
       if (
-        x >= layout.x && 
-        x <= layout.x + layout.width &&
-        y >= layout.y && 
-        y <= layout.y + layout.height
+        adjustedX >= layout.x && 
+        adjustedX <= layout.x + layout.width &&
+        adjustedY >= layout.y && 
+        adjustedY <= layout.y + layout.height
       ) {
         // Only highlight if it's opposite type (valid drop target)
         if (type !== dragState.draggedType) {
@@ -138,15 +142,19 @@ export default function AssignmentScreen({ date }: AssignmentScreenProps) {
     setHoveredDropZoneId(null);
     
     // Find which drop zone the item was dropped on
+    // IMPORTANT: Adjust for overlay offset (same as handleDragMove)
+    const adjustedX = x - 85; // Center of overlay
+    const adjustedY = y - 60; // Top of overlay (where it visually appears)
+    
     let targetId: string | null = null;
     let targetType: 'child' | 'driver' | null = null;
 
     dropZones.forEach(({ type, layout }, id) => {
       if (
-        x >= layout.x && 
-        x <= layout.x + layout.width &&
-        y >= layout.y && 
-        y <= layout.y + layout.height
+        adjustedX >= layout.x && 
+        adjustedX <= layout.x + layout.width &&
+        adjustedY >= layout.y && 
+        adjustedY <= layout.y + layout.height
       ) {
         targetId = id;
         targetType = type;
