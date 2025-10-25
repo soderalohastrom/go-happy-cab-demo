@@ -1,5 +1,6 @@
 import { query, internalMutation, action } from "./_generated/server";
 import { v } from "convex/values";
+import { internal } from "./_generated/api";
 
 // Get all active drivers (UNIFIED SCHEMA)
 export const list = query({
