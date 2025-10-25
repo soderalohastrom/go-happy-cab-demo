@@ -24,6 +24,7 @@ import {
 } from '../hooks/useConvexRoutes';
 import { DraggableCard } from './DraggableCard';
 import { DropZone } from './DropZone';
+import { DragOverlay } from './DragOverlay';
 
 interface AssignmentScreenProps {
   date: string; // YYYY-MM-DD format
@@ -38,6 +39,23 @@ export default function AssignmentScreen({ date }: AssignmentScreenProps) {
     type: 'child' | 'driver', 
     layout: { x: number; y: number; width: number; height: number }
   }>>(new Map());
+  
+  // Drag overlay state - renders at root level to float above all UI
+  const [dragState, setDragState] = useState<{
+    isDragging: boolean;
+    draggedId: string;
+    draggedType: 'child' | 'driver';
+    draggedName: string;
+    x: number;
+    y: number;
+  }>({
+    isDragging: false,
+    draggedId: '',
+    draggedType: 'child',
+    draggedName: '',
+    x: 0,
+    y: 0,
+  });
 
   // Queries
   const routes = useRoutesForDatePeriod(date, activePeriod);
@@ -71,13 +89,33 @@ export default function AssignmentScreen({ date }: AssignmentScreenProps) {
     });
   };
   
-  // Handle drag end - create route if dropped on opposite type
+  // Handle drag start - show overlay
+  const handleDragStart = (id: string, type: 'child' | 'driver', name: string) => {
+    setDragState({
+      isDragging: true,
+      draggedId: id,
+      draggedType: type,
+      draggedName: name,
+      x: 0,
+      y: 0,
+    });
+  };
+  
+  // Handle drag move - update overlay position
+  const handleDragMove = (x: number, y: number) => {
+    setDragState(prev => ({ ...prev, x, y }));
+  };
+  
+  // Handle drag end - hide overlay and create route if dropped on opposite type
   const handleDragEnd = async (
     draggedId: string, 
     draggedType: 'child' | 'driver', 
     x: number, 
     y: number
   ) => {
+    // Hide overlay
+    setDragState(prev => ({ ...prev, isDragging: false }));
+    
     // Find which drop zone the item was dropped on
     let targetId: string | null = null;
     let targetType: 'child' | 'driver' | null = null;
@@ -170,8 +208,9 @@ export default function AssignmentScreen({ date }: AssignmentScreenProps) {
   const isEmpty = routes.length === 0;
 
   return (
-    <ScrollView style={styles.container}>
-      {/* Period Tabs */}
+    <View style={styles.wrapper}>
+      <ScrollView style={styles.container}>
+        {/* Period Tabs */}
       <View style={styles.tabsContainer}>
         <TouchableOpacity
           style={[styles.tab, activePeriod === 'AM' && styles.activeTab]}
@@ -242,6 +281,8 @@ export default function AssignmentScreen({ date }: AssignmentScreenProps) {
                         id={child._id}
                         type="child"
                         name={`${child.firstName} ${child.lastName}`}
+                        onDragStart={handleDragStart}
+                        onDragMove={handleDragMove}
                         onDragEnd={handleDragEnd}
                       />
                     </DropZone>
@@ -273,6 +314,8 @@ export default function AssignmentScreen({ date }: AssignmentScreenProps) {
                         id={driver._id}
                         type="driver"
                         name={`${driver.firstName} ${driver.lastName}`}
+                        onDragStart={handleDragStart}
+                        onDragMove={handleDragMove}
                         onDragEnd={handleDragEnd}
                       />
                     </DropZone>
@@ -366,11 +409,24 @@ export default function AssignmentScreen({ date }: AssignmentScreenProps) {
           </Text>
         )}
       </View>
-    </ScrollView>
+      </ScrollView>
+      
+      {/* Drag Overlay - renders at root level to float above all UI */}
+      <DragOverlay
+        isDragging={dragState.isDragging}
+        x={dragState.x}
+        y={dragState.y}
+        type={dragState.draggedType}
+        name={dragState.draggedName}
+      />
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
+  wrapper: {
+    flex: 1,
+  },
   container: {
     flex: 1,
     backgroundColor: '#F5F5F5',

@@ -18,44 +18,29 @@ interface DraggableCardProps {
   id: string;
   type: 'child' | 'driver';
   name: string;
+  onDragStart: (id: string, type: 'child' | 'driver', name: string) => void;
+  onDragMove: (x: number, y: number) => void;
   onDragEnd: (id: string, type: 'child' | 'driver', x: number, y: number) => void;
 }
 
-export function DraggableCard({ id, type, name, onDragEnd }: DraggableCardProps) {
-  const translateX = useSharedValue(0);
-  const translateY = useSharedValue(0);
-  const scale = useSharedValue(1);
+export function DraggableCard({ id, type, name, onDragStart, onDragMove, onDragEnd }: DraggableCardProps) {
   const isDragging = useSharedValue(0);
 
   const panGesture = Gesture.Pan()
     .onStart(() => {
-      // Scale up and bring to front during drag
-      scale.value = withSpring(1.1);
       isDragging.value = 1;
+      runOnJS(onDragStart)(id, type, name);
     })
     .onUpdate((e) => {
-      translateX.value = e.translationX;
-      translateY.value = e.translationY;
+      runOnJS(onDragMove)(e.absoluteX, e.absoluteY);
     })
     .onEnd((e) => {
-      // Call drag end handler with absolute position
-      runOnJS(onDragEnd)(id, type, e.absoluteX, e.absoluteY);
-      
-      // Animate back to original position
-      translateX.value = withSpring(0);
-      translateY.value = withSpring(0);
-      scale.value = withSpring(1);
       isDragging.value = 0;
+      runOnJS(onDragEnd)(id, type, e.absoluteX, e.absoluteY);
     });
 
   const animatedStyle = useAnimatedStyle(() => ({
-    transform: [
-      { translateX: translateX.value },
-      { translateY: translateY.value },
-      { scale: scale.value },
-    ],
-    zIndex: isDragging.value === 1 ? 9999 : 1,
-    elevation: isDragging.value === 1 ? 10 : 3, // Android elevation
+    opacity: isDragging.value === 1 ? 0 : 1, // Hide original during drag
   }));
 
   const backgroundColor = type === 'child' ? '#FFF9C4' : '#BBDEFB';
