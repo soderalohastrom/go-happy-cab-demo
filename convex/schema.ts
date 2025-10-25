@@ -271,8 +271,8 @@ export default defineSchema({
   })
     .index("by_driver_date", ["driverId", "date"])
     .index("by_date_period", ["date", "period"]) // DISPATCH PRIMARY INDEX
-    .index("by_date_period_child", ["date", "period", "childId"]) // Prevent double-booking
-    .index("by_date_period_driver", ["date", "period", "driverId"]) // Prevent double-booking
+    .index("by_child_date_period", ["childId", "date", "period"]) // Prevent double-booking child
+    .index("by_driver_date_period", ["driverId", "date", "period"]) // Prevent double-booking driver
     .index("by_status", ["status"])
     .index("by_child", ["childId"]),
 
