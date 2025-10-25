@@ -24,6 +24,10 @@ export function DragOverlay({ isDragging, x, y, type, name }: DragOverlayProps) 
   const borderColor = type === 'child' ? '#FBC02D' : '#1976D2';
   const icon = type === 'child' ? '👧' : '🚗';
 
+  // Calculate card dimensions for proper centering
+  const cardWidth = 180;
+  const cardHeight = 50;
+  
   return (
     <View style={styles.overlay} pointerEvents="none">
       <Animated.View 
@@ -33,9 +37,11 @@ export function DragOverlay({ isDragging, x, y, type, name }: DragOverlayProps) 
             backgroundColor, 
             borderColor,
             position: 'absolute',
-            left: x - 85,  // Better centering (card width ~170)
-            top: y - 60,   // Above finger so you can see drop zone
-            opacity: 0.85, // Semi-transparent to see through
+            // Center the card directly under the finger
+            left: x - (cardWidth / 2),
+            top: y - (cardHeight / 2),
+            width: cardWidth,
+            opacity: 0.85,
           }
         ]}
       >

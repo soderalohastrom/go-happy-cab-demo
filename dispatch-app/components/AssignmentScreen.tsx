@@ -85,6 +85,7 @@ export default function AssignmentScreen({ date }: AssignmentScreenProps) {
     type: 'child' | 'driver', 
     layout: { x: number; y: number; width: number; height: number }
   ) => {
+    console.log(`📦 DROP ZONE REGISTERED: ${type} - y:${Math.round(layout.y)} h:${Math.round(layout.height)}`);
     setDropZones(prev => {
       const updated = new Map(prev);
       updated.set(id, { type, layout });
@@ -94,6 +95,7 @@ export default function AssignmentScreen({ date }: AssignmentScreenProps) {
   
   // Handle drag start - show overlay
   const handleDragStart = (id: string, type: 'child' | 'driver', name: string) => {
+    console.log('🎯 DRAG START:', { id, type, name });
     setDragState({
       isDragging: true,
       draggedId: id,
@@ -106,20 +108,22 @@ export default function AssignmentScreen({ date }: AssignmentScreenProps) {
   
   // Handle drag move - update overlay position and highlight valid drop zones
   const handleDragMove = (x: number, y: number) => {
+    // Log every 10th move to avoid spam
+    if (Math.random() < 0.1) {
+      console.log('📍 DRAG MOVE:', { x: Math.round(x), y: Math.round(y) });
+    }
+    
     setDragState(prev => ({ ...prev, x, y }));
     
     // Find which drop zone we're hovering over
-    // IMPORTANT: Adjust for overlay offset (overlay is at y - 60, so collision should check there)
-    const adjustedX = x - 85; // Center of overlay
-    const adjustedY = y - 60; // Top of overlay (where it visually appears)
-    
+    // Use raw finger position for collision (card is centered on finger)
     let hoveredId: string | null = null;
     dropZones.forEach(({ type, layout }, id) => {
       if (
-        adjustedX >= layout.x && 
-        adjustedX <= layout.x + layout.width &&
-        adjustedY >= layout.y && 
-        adjustedY <= layout.y + layout.height
+        x >= layout.x && 
+        x <= layout.x + layout.width &&
+        y >= layout.y && 
+        y <= layout.y + layout.height
       ) {
         // Only highlight if it's opposite type (valid drop target)
         if (type !== dragState.draggedType) {
@@ -127,6 +131,11 @@ export default function AssignmentScreen({ date }: AssignmentScreenProps) {
         }
       }
     });
+    
+    if (hoveredId !== hoveredDropZoneId) {
+      console.log('🎯 HOVER CHANGED:', hoveredId ? `Now over ${hoveredId}` : 'No longer over any zone');
+    }
+    
     setHoveredDropZoneId(hoveredId);
   };
   
@@ -142,19 +151,16 @@ export default function AssignmentScreen({ date }: AssignmentScreenProps) {
     setHoveredDropZoneId(null);
     
     // Find which drop zone the item was dropped on
-    // IMPORTANT: Adjust for overlay offset (same as handleDragMove)
-    const adjustedX = x - 85; // Center of overlay
-    const adjustedY = y - 60; // Top of overlay (where it visually appears)
-    
+    // Use raw finger position for collision (card is centered on finger)
     let targetId: string | null = null;
     let targetType: 'child' | 'driver' | null = null;
 
     dropZones.forEach(({ type, layout }, id) => {
       if (
-        adjustedX >= layout.x && 
-        adjustedX <= layout.x + layout.width &&
-        adjustedY >= layout.y && 
-        adjustedY <= layout.y + layout.height
+        x >= layout.x && 
+        x <= layout.x + layout.width &&
+        y >= layout.y && 
+        y <= layout.y + layout.height
       ) {
         targetId = id;
         targetType = type;
