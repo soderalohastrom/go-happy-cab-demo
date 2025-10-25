@@ -192,24 +192,21 @@ export const getUnassignedDrivers = query({
   },
 });
 
-// Create a new assignment
 export const create = mutation({
   args: {
     date: v.string(),
-    period: v.string(),
+    period: v.union(v.literal("AM"), v.literal("PM")),
     childId: v.id("children"),
     driverId: v.id("drivers"),
-    status: v.optional(v.string()),
+    status: v.string(),
     user: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
-    const { date, period, childId, driverId, status = "scheduled", user } = args;
-
-    // Check if child is already assigned for this date/period
+    // Check for existing assignment for the child
     const existingChildAssignment = await ctx.db
       .query("routes")
-      .withIndex("by_date_period_child", (q) =>
-        q.eq("date", date).eq("period", period).eq("childId", childId)
+      .withIndex("by_child_date_period", (q) =>
+        q.eq("childId", args.childId).eq("date", args.date).eq("period", args.period)
       )
       .first();
 
@@ -217,11 +214,11 @@ export const create = mutation({
       throw new Error("Child is already assigned for this period");
     }
 
-    // Check if driver is already assigned for this date/period
+    // Check for existing assignment for the driver
     const existingDriverAssignment = await ctx.db
       .query("routes")
-      .withIndex("by_date_period_driver", (q) =>
-        q.eq("date", date).eq("period", period).eq("driverId", driverId)
+      .withIndex("by_driver_date_period", (q) =>
+        q.eq("driverId", args.driverId).eq("date", args.date).eq("period", args.period)
       )
       .first();
 
@@ -229,21 +226,20 @@ export const create = mutation({
       throw new Error("Driver is already assigned for this period");
     }
 
-    // Get child and driver names for audit log
-    const child = await ctx.db.get(childId);
-    const driver = await ctx.db.get(driverId);
+    const child = await ctx.db.get(args.childId);
+    const driver = await ctx.db.get(args.driverId);
 
     // Create the assignment
     const assignmentId = await ctx.db.insert("routes", {
-      date,
-      period,
-      type: period === "AM" ? "pickup" : "dropoff",
-      childId,
-      driverId,
-      status,
+      date: args.date,
+      period: args.period,
+      type: args.period === "AM" ? "pickup" : "dropoff",
+      childId: args.childId,
+      driverId: args.driverId,
+      status: args.status,
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
-      createdBy: user,
+      createdBy: args.user,
     });
 
     // Create audit log entry
@@ -253,12 +249,12 @@ export const create = mutation({
       assignmentId,
       {
         description: "Route assignment created",
-        date,
-        period,
+        date: args.date,
+        period: args.period,
         childName: `${child?.firstName || ""} ${child?.lastName || "Unknown"}`.trim(),
         driverName: `${driver?.firstName || ""} ${driver?.lastName || "Unknown"}`.trim(),
       },
-      user
+      args.user
     ));
 
     // Create dispatch event for real-time sync to Driver App
@@ -266,17 +262,17 @@ export const create = mutation({
       eventId: `DE-${Date.now()}-${Math.random().toString(36).substr(2, 6)}`,
       type: "route_created",
       routeId: assignmentId,
-      childId,
-      driverId,
+      childId: args.childId,
+      driverId: args.driverId,
       eventData: { 
-        date, 
-        period, 
-        status,
+        date: args.date, 
+        period: args.period, 
+        status: args.status,
         childName: `${child?.firstName || ""} ${child?.lastName || "Unknown"}`.trim(),
         driverName: `${driver?.firstName || ""} ${driver?.lastName || "Unknown"}`.trim(),
       },
       triggerSms: false,
-      triggeredBy: user || "system",
+      triggeredBy: args.user || "system",
       timestamp: new Date().toISOString(),
       createdAt: new Date().toISOString(),
     });
