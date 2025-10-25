@@ -11,6 +11,7 @@ interface DropZoneProps {
   id: string;
   type: 'child' | 'driver';
   children: React.ReactNode;
+  isHighlighted?: boolean; // Visual feedback when dragging over
   onRegister: (
     id: string, 
     type: 'child' | 'driver', 
@@ -18,7 +19,7 @@ interface DropZoneProps {
   ) => void;
 }
 
-export function DropZone({ id, type, children, onRegister }: DropZoneProps) {
+export function DropZone({ id, type, children, isHighlighted, onRegister }: DropZoneProps) {
   const viewRef = useRef<View>(null);
 
   const handleLayout = () => {
@@ -32,7 +33,10 @@ export function DropZone({ id, type, children, onRegister }: DropZoneProps) {
     <View 
       ref={viewRef} 
       onLayout={handleLayout} 
-      style={styles.dropZone}
+      style={[
+        styles.dropZone,
+        isHighlighted && styles.highlighted
+      ]}
     >
       {children}
     </View>
@@ -42,6 +46,13 @@ export function DropZone({ id, type, children, onRegister }: DropZoneProps) {
 const styles = StyleSheet.create({
   dropZone: {
     minHeight: 60,
+  },
+  highlighted: {
+    backgroundColor: '#E3F2FD', // Light blue highlight
+    borderRadius: 8,
+    borderWidth: 2,
+    borderColor: '#2196F3', // Blue border
+    borderStyle: 'dashed',
   },
 });
 

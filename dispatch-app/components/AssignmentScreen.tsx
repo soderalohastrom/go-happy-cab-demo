@@ -56,6 +56,9 @@ export default function AssignmentScreen({ date }: AssignmentScreenProps) {
     x: 0,
     y: 0,
   });
+  
+  // Track which drop zone is currently hovered for visual feedback
+  const [hoveredDropZoneId, setHoveredDropZoneId] = useState<string | null>(null);
 
   // Queries
   const routes = useRoutesForDatePeriod(date, activePeriod);
@@ -101,9 +104,26 @@ export default function AssignmentScreen({ date }: AssignmentScreenProps) {
     });
   };
   
-  // Handle drag move - update overlay position
+  // Handle drag move - update overlay position and highlight valid drop zones
   const handleDragMove = (x: number, y: number) => {
     setDragState(prev => ({ ...prev, x, y }));
+    
+    // Find which drop zone we're hovering over
+    let hoveredId: string | null = null;
+    dropZones.forEach(({ type, layout }, id) => {
+      if (
+        x >= layout.x && 
+        x <= layout.x + layout.width &&
+        y >= layout.y && 
+        y <= layout.y + layout.height
+      ) {
+        // Only highlight if it's opposite type (valid drop target)
+        if (type !== dragState.draggedType) {
+          hoveredId = id;
+        }
+      }
+    });
+    setHoveredDropZoneId(hoveredId);
   };
   
   // Handle drag end - hide overlay and create route if dropped on opposite type
@@ -113,8 +133,9 @@ export default function AssignmentScreen({ date }: AssignmentScreenProps) {
     x: number, 
     y: number
   ) => {
-    // Hide overlay
+    // Hide overlay and clear hover state
     setDragState(prev => ({ ...prev, isDragging: false }));
+    setHoveredDropZoneId(null);
     
     // Find which drop zone the item was dropped on
     let targetId: string | null = null;
@@ -275,6 +296,7 @@ export default function AssignmentScreen({ date }: AssignmentScreenProps) {
                       key={child._id}
                       id={child._id}
                       type="child"
+                      isHighlighted={hoveredDropZoneId === child._id}
                       onRegister={handleRegisterDropZone}
                     >
                       <DraggableCard
@@ -308,6 +330,7 @@ export default function AssignmentScreen({ date }: AssignmentScreenProps) {
                       key={driver._id}
                       id={driver._id}
                       type="driver"
+                      isHighlighted={hoveredDropZoneId === driver._id}
                       onRegister={handleRegisterDropZone}
                     >
                       <DraggableCard

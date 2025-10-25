@@ -33,9 +33,9 @@ export function DragOverlay({ isDragging, x, y, type, name }: DragOverlayProps) 
             backgroundColor, 
             borderColor,
             position: 'absolute',
-            left: x - 100, // Center under finger (card width ~200)
-            top: y - 30,   // Adjust for finger offset
-            transform: [{ scale: 1.1 }],
+            left: x - 85,  // Better centering (card width ~170)
+            top: y - 60,   // Above finger so you can see drop zone
+            opacity: 0.85, // Semi-transparent to see through
           }
         ]}
       >
