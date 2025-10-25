@@ -47,6 +47,11 @@
 
 ### Recent Accomplishments
 
+**🎯 Oct 25, 2025 - UI & UX Bug Fixes:**
+- ✅ **Fixed inactive tab counts** - AM/PM tabs now show correct counts even when not selected.
+- ✅ **Fixed drag-and-drop offset** - Dragged card is now perfectly centered on the user's finger by resolving a coordinate space mismatch.
+- ✅ **Fixed duplicate assignment bug** - Added robust server-side validation with new database indexes to prevent race conditions when pairing/un-pairing quickly.
+
 **🎉 Oct 25, 2025 - MOBILE DRAG-AND-DROP IMPLEMENTED!**
 - ✅ Installed react-native-gesture-handler + react-native-reanimated
 - ✅ Created DraggableCard component with pan gestures and scale animations

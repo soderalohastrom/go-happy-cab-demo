@@ -66,9 +66,11 @@ export default defineSchema({
     
     // Metadata
     active: v.boolean(), // Simplified active flag for dispatch
+    clerkId: v.optional(v.string()), // ID from Clerk user object
     createdAt: v.string(),
     updatedAt: v.string(),
   })
+    .index("by_clerk_id", ["clerkId"]) // New index for fast lookups
     .index("by_employee_id", ["employeeId"])
     .index("by_email", ["email"])
     .index("by_status", ["status"])

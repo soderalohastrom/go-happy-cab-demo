@@ -105,16 +105,18 @@ The Dispatch App is designed for early-morning route assignment:
 - Draggable children/drivers, droppable assignment slots
 
 **Dispatch App (Expo):** Uses react-native-gesture-handler + reanimated:
-- Pan gesture with scale feedback during drag
-- Drop zone collision detection via absolute coordinates
-- Side-by-side columns (children | drivers) for intuitive pairing
-- Visual feedback: scale to 1.1x, shadow elevation during drag
+- **Drag Overlay Pattern** ensures dragged card floats above all UI elements.
+- **Coordinate Space Correction** for perfect finger tracking.
+- Pan gesture for smooth dragging.
+- Drop zone collision detection via absolute window coordinates.
+- Side-by-side columns (children | drivers) for intuitive pairing.
+- Visual feedback: semi-transparent overlay and highlighted drop zones.
 
 ### Date-based Assignment Model
 - Assignments are keyed by ISO date string + period (AM/PM)
-- Prevents double-booking via unique indexes
+- Prevents double-booking via unique indexes (`by_child_date_period`, `by_driver_date_period`)
 - Historical data preserved for all dates
-- Calendar view shows assignment counts per period
+- Calendar view shows assignment counts per period for both active and inactive tabs.
 
 ### Convex Function Organization
 - `children.ts` / `drivers.ts`: Entity CRUD operations
