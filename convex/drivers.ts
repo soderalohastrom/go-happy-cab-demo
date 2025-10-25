@@ -80,8 +80,9 @@ export const addDriver = action({
         phone_number: [args.phone],
         first_name: args.firstName,
         last_name: args.lastName,
-        // You can set a temporary password or let Clerk handle the invitation flow
-        skip_password_checks: true, 
+        // Generate a temporary password to meet Clerk's requirements
+        password: `!Temp${Date.now()}${Math.random().toString(36).slice(-4)}`,
+        skip_password_notification: true, // Don't email them the temp password
       }),
     });
 
