@@ -17,10 +17,8 @@ export const list = query({
 
 // Get all drivers (including inactive)
 export const listAll = query({
-  args: {},
   handler: async (ctx) => {
-    const drivers = await ctx.db.query("drivers").collect();
-    return drivers.sort((a, b) => a.lastName.localeCompare(b.lastName));
+    return await ctx.db.query("drivers").order("asc").collect();
   },
 });
 

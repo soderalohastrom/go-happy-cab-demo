@@ -159,3 +159,7 @@ export function useRouteCountsForDate(date: string) {
   return useQuery(api.assignments.getRouteCountsForDate, { date });
 }
 
+export function useAllDrivers() {
+  return useQuery(api.drivers.listAll);
+}
+
