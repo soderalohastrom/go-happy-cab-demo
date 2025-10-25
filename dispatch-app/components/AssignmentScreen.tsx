@@ -1,7 +1,7 @@
 /**
  * AssignmentScreen Component
  * 
- * Main dispatch interface with AM/PM tabs, unassigned lists, and route management
+ * Main dispatch interface with AM/PM tabs, drag-and-drop pairing, and route management
  */
 
 import React, { useState } from 'react';
@@ -22,6 +22,8 @@ import {
   useCopyFromPreviousDay,
   useRemoveRoute,
 } from '../hooks/useConvexRoutes';
+import { DraggableCard } from './DraggableCard';
+import { DropZone } from './DropZone';
 
 interface AssignmentScreenProps {
   date: string; // YYYY-MM-DD format
@@ -29,6 +31,12 @@ interface AssignmentScreenProps {
 
 export default function AssignmentScreen({ date }: AssignmentScreenProps) {
   const [activePeriod, setActivePeriod] = useState<'AM' | 'PM'>('AM');
+  
+  // Drop zone tracking for drag-and-drop
+  const [dropZones, setDropZones] = useState<Map<string, { 
+    type: 'child' | 'driver', 
+    layout: { x: number; y: number; width: number; height: number }
+  }>>(new Map());
 
   // Queries
   const routes = useRoutesForDatePeriod(date, activePeriod);
@@ -39,6 +47,72 @@ export default function AssignmentScreen({ date }: AssignmentScreenProps) {
   const createRoute = useCreateRoute();
   const copyFromPreviousDay = useCopyFromPreviousDay();
   const removeRoute = useRemoveRoute();
+  
+  // Register drop zone positions for collision detection
+  const handleRegisterDropZone = (
+    id: string, 
+    type: 'child' | 'driver', 
+    layout: { x: number; y: number; width: number; height: number }
+  ) => {
+    setDropZones(prev => {
+      const updated = new Map(prev);
+      updated.set(id, { type, layout });
+      return updated;
+    });
+  };
+  
+  // Handle drag end - create route if dropped on opposite type
+  const handleDragEnd = async (
+    draggedId: string, 
+    draggedType: 'child' | 'driver', 
+    x: number, 
+    y: number
+  ) => {
+    // Find which drop zone the item was dropped on
+    let targetId: string | null = null;
+    let targetType: 'child' | 'driver' | null = null;
+
+    dropZones.forEach(({ type, layout }, id) => {
+      if (
+        x >= layout.x && 
+        x <= layout.x + layout.width &&
+        y >= layout.y && 
+        y <= layout.y + layout.height
+      ) {
+        targetId = id;
+        targetType = type;
+      }
+    });
+
+    if (!targetId || !targetType) {
+      // Dropped outside any valid zone
+      return;
+    }
+
+    // Don't allow pairing same types (child on child, driver on driver)
+    if (draggedType === targetType) {
+      return;
+    }
+
+    // Create the pairing!
+    try {
+      const childId = draggedType === 'child' ? draggedId : targetId;
+      const driverId = draggedType === 'driver' ? draggedId : targetId;
+
+      await createRoute({
+        date,
+        period: activePeriod,
+        childId: childId as any,
+        driverId: driverId as any,
+        status: 'assigned',
+      });
+      
+      // Success feedback
+      Alert.alert('Success', 'Route created!', [{ text: 'OK' }], { cancelable: true });
+    } catch (error: any) {
+      Alert.alert('Error', error.message || 'Failed to create route');
+    }
+  };
 
   // Handle copy from previous day
   const handleCopyPreviousDay = async () => {
@@ -174,47 +248,79 @@ export default function AssignmentScreen({ date }: AssignmentScreenProps) {
         </View>
       )}
 
-      {/* Unassigned Children */}
-      {unassignedChildren.length > 0 && (
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>
-            Unassigned Children ({unassignedChildren.length})
+      {/* Drag-and-Drop Pairing Zone: Side-by-side columns */}
+      {(unassignedChildren.length > 0 || unassignedDrivers.length > 0) && (
+        <View style={styles.pairingContainer}>
+          <Text style={styles.pairingTitle}>
+            👉 Drag & Drop to Create Routes
           </Text>
-          <Text style={styles.sectionHint}>
-            These children need {activePeriod} routes
+          <Text style={styles.pairingHint}>
+            Drag a child onto a driver (or vice versa) to pair them
           </Text>
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.unassignedList}>
-            {unassignedChildren.map((child) => (
-              <View key={child._id} style={styles.unassignedCard}>
-                <Text style={styles.unassignedIcon}>👧</Text>
-                <Text style={styles.unassignedName}>
-                  {child.firstName} {child.lastName}
-                </Text>
+          
+          <View style={styles.columnsContainer}>
+            {/* Children Column */}
+            <View style={styles.column}>
+              <View style={styles.columnHeader}>
+                <Text style={styles.columnTitle}>Children</Text>
+                <View style={styles.columnBadge}>
+                  <Text style={styles.columnBadgeText}>{unassignedChildren.length}</Text>
+                </View>
               </View>
-            ))}
-          </ScrollView>
-        </View>
-      )}
+              <ScrollView style={styles.columnScroll} showsVerticalScrollIndicator={false}>
+                {unassignedChildren.length === 0 ? (
+                  <Text style={styles.emptyColumnText}>✅ All assigned!</Text>
+                ) : (
+                  unassignedChildren.map((child) => (
+                    <DropZone
+                      key={child._id}
+                      id={child._id}
+                      type="child"
+                      onRegister={handleRegisterDropZone}
+                    >
+                      <DraggableCard
+                        id={child._id}
+                        type="child"
+                        name={`${child.firstName} ${child.lastName}`}
+                        onDragEnd={handleDragEnd}
+                      />
+                    </DropZone>
+                  ))
+                )}
+              </ScrollView>
+            </View>
 
-      {/* Unassigned Drivers */}
-      {unassignedDrivers.length > 0 && (
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>
-            Available Drivers ({unassignedDrivers.length})
-          </Text>
-          <Text style={styles.sectionHint}>
-            These drivers have no {activePeriod} routes yet
-          </Text>
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.unassignedList}>
-            {unassignedDrivers.map((driver) => (
-              <View key={driver._id} style={styles.unassignedCard}>
-                <Text style={styles.unassignedIcon}>🚗</Text>
-                <Text style={styles.unassignedName}>
-                  {driver.firstName} {driver.lastName}
-                </Text>
+            {/* Drivers Column */}
+            <View style={styles.column}>
+              <View style={styles.columnHeader}>
+                <Text style={styles.columnTitle}>Drivers</Text>
+                <View style={styles.columnBadge}>
+                  <Text style={styles.columnBadgeText}>{unassignedDrivers.length}</Text>
+                </View>
               </View>
-            ))}
-          </ScrollView>
+              <ScrollView style={styles.columnScroll} showsVerticalScrollIndicator={false}>
+                {unassignedDrivers.length === 0 ? (
+                  <Text style={styles.emptyColumnText}>✅ All assigned!</Text>
+                ) : (
+                  unassignedDrivers.map((driver) => (
+                    <DropZone
+                      key={driver._id}
+                      id={driver._id}
+                      type="driver"
+                      onRegister={handleRegisterDropZone}
+                    >
+                      <DraggableCard
+                        id={driver._id}
+                        type="driver"
+                        name={`${driver.firstName} ${driver.lastName}`}
+                        onDragEnd={handleDragEnd}
+                      />
+                    </DropZone>
+                  ))
+                )}
+              </ScrollView>
+            </View>
+          </View>
         </View>
       )}
 
@@ -409,26 +515,74 @@ const styles = StyleSheet.create({
     fontSize: 18,
     color: '#F44336',
   },
-  unassignedList: {
-    marginTop: 8,
+  pairingContainer: {
+    backgroundColor: '#fff',
+    margin: 16,
+    padding: 16,
+    borderRadius: 12,
+    minHeight: 400,
   },
-  unassignedCard: {
-    alignItems: 'center',
-    padding: 12,
-    backgroundColor: '#FFF9C4',
-    borderRadius: 8,
-    marginRight: 8,
-    minWidth: 100,
-  },
-  unassignedIcon: {
-    fontSize: 32,
-    marginBottom: 4,
-  },
-  unassignedName: {
-    fontSize: 12,
-    fontWeight: '600',
+  pairingTitle: {
+    fontSize: 18,
+    fontWeight: 'bold',
     color: '#333',
     textAlign: 'center',
+    marginBottom: 4,
+  },
+  pairingHint: {
+    fontSize: 12,
+    color: '#999',
+    textAlign: 'center',
+    marginBottom: 16,
+  },
+  columnsContainer: {
+    flexDirection: 'row',
+    gap: 12,
+    flex: 1,
+  },
+  column: {
+    flex: 1,
+    backgroundColor: '#F9F9F9',
+    borderRadius: 8,
+    padding: 12,
+    minHeight: 350,
+  },
+  columnHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 12,
+    paddingBottom: 8,
+    borderBottomWidth: 2,
+    borderBottomColor: '#E0E0E0',
+  },
+  columnTitle: {
+    fontSize: 16,
+    fontWeight: 'bold',
+    color: '#333',
+  },
+  columnBadge: {
+    backgroundColor: '#2196F3',
+    borderRadius: 12,
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    minWidth: 24,
+    alignItems: 'center',
+  },
+  columnBadgeText: {
+    fontSize: 14,
+    fontWeight: 'bold',
+    color: '#fff',
+  },
+  columnScroll: {
+    flex: 1,
+  },
+  emptyColumnText: {
+    fontSize: 14,
+    color: '#4CAF50',
+    textAlign: 'center',
+    marginTop: 20,
+    fontWeight: '600',
   },
   summary: {
     padding: 16,

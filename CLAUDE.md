@@ -68,11 +68,13 @@ This is required because Metro bundler (Expo's bundler) needs a local copy of th
 
 ### Dispatch App Frontend (Expo)
 - **React Native** with Expo Router for navigation
+- **react-native-gesture-handler** + **react-native-reanimated** for drag-and-drop pairing
 - **react-native-calendars** for month/date selection
 - Touch-optimized native components (no web components)
 - AM/PM period tabs for route management
+- **Side-by-side columns** for children and drivers with drag-to-pair workflow
 - Real-time Convex sync via hooks in `hooks/useConvexRoutes.ts`
-- Components: MonthCalendar, DateNavigator, AssignmentScreen
+- Components: MonthCalendar, DateNavigator, AssignmentScreen, DraggableCard, DropZone
 
 ### Backend (Convex) - Unified for Both Apps
 - Real-time database with reactive queries
@@ -89,12 +91,24 @@ This is required because Metro bundler (Expo's bundler) needs a local copy of th
 
 ## Key Architectural Patterns
 
+### Dispatcher Daily Workflow (Core Purpose)
+The Dispatch App is designed for early-morning route assignment:
+1. **Copy Previous Day** - 85%+ routes stay the same day-to-day
+2. **Drag-to-Pair** - Side-by-side columns for easy child → driver pairing
+3. **X to Unpair** - Quick removal of routes that need reassignment
+4. **Real-time Sync** - Changes instantly notify drivers via dispatch events
+
 ### Drag-and-Drop System
-The app uses @dnd-kit with custom sensors optimized for both mouse and touch:
+**POC App (Vite):** Uses @dnd-kit with custom sensors for mouse and touch:
 - `TouchSensor` with 100ms delay prevents accidental drags
 - `PointerSensor` for desktop interactions
 - Draggable children/drivers, droppable assignment slots
-- Visual feedback during drag operations
+
+**Dispatch App (Expo):** Uses react-native-gesture-handler + reanimated:
+- Pan gesture with scale feedback during drag
+- Drop zone collision detection via absolute coordinates
+- Side-by-side columns (children | drivers) for intuitive pairing
+- Visual feedback: scale to 1.1x, shadow elevation during drag
 
 ### Date-based Assignment Model
 - Assignments are keyed by ISO date string + period (AM/PM)

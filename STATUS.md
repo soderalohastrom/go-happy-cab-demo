@@ -1,30 +1,64 @@
 # Go Happy Cab - Project Status
 
-**Last Updated:** October 24, 2025  
-**Status:** 🚀 Migration to Unified Architecture  
+**Last Updated:** October 25, 2025  
+**Status:** 🎉 MOBILE DRAG-AND-DROP COMPLETE!  
 **Unified Convex:** `colorful-wildcat-524.convex.cloud`
+
+## 🚀 **MAJOR MILESTONE: MOBILE DRAG-AND-DROP PAIRING!**
+
+**Oct 25, 2025** - The Dispatch App now has the **core dispatcher workflow**:
+
+### ✅ Implemented Features
+1. **📱 Side-by-Side Drag-and-Drop** - Children and drivers in equal-width columns
+2. **👆 Touch Gestures** - react-native-gesture-handler with smooth animations
+3. **🎯 Easy Pairing** - Drag child onto driver (or vice versa) to create route
+4. **✕ Quick Unpair** - X button removes routes instantly
+5. **📋 Copy Previous Day** - One button to copy 85%+ consistent routes
+6. **🔄 Real-time Sync** - Changes sync to Driver App via dispatch events
+7. **📊 Status Badges** - Driver actions (pickup/no-show/cancel) show live
+
+### Core Dispatcher Workflow (North Star Achievement!)
+**Morning routine - designed for speed and ease:**
+1. Wake up → Open Dispatch App
+2. Navigate to today's date (empty)
+3. Tap "Copy Previous Day's Routes" (85%+ routes populate)
+4. Drag 2-3 unassigned children onto available drivers
+5. Done! Drivers see routes instantly on their phones
 
 ## Current State
 
-**Three Apps, One Database:** Integrating dispatch and driver apps with unified Convex backend for real-time synchronization.
+**Three Apps, One Database:** Dispatch and driver apps unified with real-time synchronization.
 
 ### App Status
 1. **✅ POC App (Vite)** - Original demo, fully functional, preserved at root
-2. **✅ Dispatch App (Expo)** - Mobile-first dispatch app, core features working
-3. **🚧 Driver App (Expo)** - Retrofitting to use unified Convex deployment
+2. **🎉 Dispatch App (Expo)** - **MOBILE DRAG-AND-DROP WORKING!** Core mission complete!
+3. **✅ Driver App (Expo)** - Three-button system operational, real-time sync confirmed
 
 ### Dispatch App - Working Features
 - ✅ **Monthly calendar** - react-native-calendars with route indicators
 - ✅ **Date navigation** - Prev/today/next buttons with date picker
 - ✅ **AM/PM period tabs** - Separate route management
 - ✅ **Copy Previous Day's Schedule** - Bulk copy (25 routes tested)
+- 🎉 **Drag-and-drop pairing** - Side-by-side columns for intuitive child→driver assignment
 - ✅ **Real-time Convex sync** - WebSocket updates
-- ✅ **Route assignment UI** - Child/driver lists with remove functionality
+- ✅ **Route removal** - X button to unpair routes
+- ✅ **Status badges** - Live updates from driver actions (pickup/no-show/cancel)
 - ✅ **Unified schema integration** - All 4 schema errors resolved
 
-### Recent Accomplishments (Oct 24, 2025)
+### Recent Accomplishments
 
-**Dispatch App Migration Complete:**
+**🎉 Oct 25, 2025 - MOBILE DRAG-AND-DROP IMPLEMENTED!**
+- ✅ Installed react-native-gesture-handler + react-native-reanimated
+- ✅ Created DraggableCard component with pan gestures and scale animations
+- ✅ Created DropZone component with collision detection
+- ✅ Ported drag-end logic from POC (child↔driver pairing)
+- ✅ Implemented side-by-side column layout (children | drivers)
+- ✅ Added visual feedback (scale 1.1x, shadows during drag)
+- ✅ Wrapped app with GestureHandlerRootView
+- ✅ Updated tab names (Dispatch | Reports)
+- ✅ **Result:** Dispatcher can drag children onto drivers to create routes!
+
+**Oct 24, 2025 - Dispatch App Migration Complete:**
 - ✅ Created dispatch-app/ subdirectory with Expo Router
 - ✅ Built unified Convex schema (650+ lines) merging dispatch + driver needs
 - ✅ Created new Convex deployment: `colorful-wildcat-524.convex.cloud`
@@ -67,11 +101,17 @@
 
 ## Tech Stack
 
-### Frontend
+### POC App (Vite)
 - React 18 + Vite
-- @dnd-kit for drag-and-drop
+- @dnd-kit for web drag-and-drop
 - react-calendar for date navigation
 - TailwindCSS for styling
+
+### Dispatch App (Expo)
+- React Native + Expo Router
+- react-native-gesture-handler + react-native-reanimated for mobile drag-and-drop
+- react-native-calendars for month selection
+- Native StyleSheet for styling
 
 ### Backend
 - Convex real-time database
