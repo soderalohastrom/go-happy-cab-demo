@@ -192,6 +192,30 @@ export const getUnassignedDrivers = query({
   },
 });
 
+export const getRouteCountsForDate = query({
+  args: { date: v.string() },
+  handler: async (ctx, args) => {
+    const amRoutes = await ctx.db
+      .query("routes")
+      .withIndex("by_date_period", (q) =>
+        q.eq("date", args.date).eq("period", "AM")
+      )
+      .collect();
+
+    const pmRoutes = await ctx.db
+      .query("routes")
+      .withIndex("by_date_period", (q) =>
+        q.eq("date", args.date).eq("period", "PM")
+      )
+      .collect();
+
+    return {
+      amCount: amRoutes.length,
+      pmCount: pmRoutes.length,
+    };
+  },
+});
+
 export const create = mutation({
   args: {
     date: v.string(),

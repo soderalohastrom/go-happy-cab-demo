@@ -21,6 +21,7 @@ import {
   useRoutesForDatePeriod,
   useUnassignedChildren,
   useUnassignedDrivers,
+  useRouteCountsForDate,
   useCreateRoute,
   useCopyFromPreviousDay,
   useRemoveRoute,
@@ -69,6 +70,7 @@ export default function AssignmentScreen({ date }: AssignmentScreenProps) {
   const routes = useRoutesForDatePeriod(date, activePeriod);
   const unassignedChildren = useUnassignedChildren(date, activePeriod);
   const unassignedDrivers = useUnassignedDrivers(date, activePeriod);
+  const routeCounts = useRouteCountsForDate(date);
 
   // Mutations
   const createRoute = useCreateRoute();
@@ -229,7 +231,7 @@ export default function AssignmentScreen({ date }: AssignmentScreenProps) {
   };
 
   // Loading state
-  if (routes === undefined || unassignedChildren === undefined || unassignedDrivers === undefined) {
+  if (routes === undefined || unassignedChildren === undefined || unassignedDrivers === undefined || routeCounts === undefined) {
     return (
       <View style={styles.loadingContainer}>
         <ActivityIndicator size="large" color="#2196F3" />
@@ -259,7 +261,7 @@ export default function AssignmentScreen({ date }: AssignmentScreenProps) {
             🌅 AM Pickup
           </Text>
           <Text style={[styles.tabCount, activePeriod === 'AM' && styles.activeTabCount]}>
-            {activePeriod === 'AM' ? routes.length : 0}
+            {routeCounts?.amCount ?? 0}
           </Text>
         </TouchableOpacity>
 
@@ -271,7 +273,7 @@ export default function AssignmentScreen({ date }: AssignmentScreenProps) {
             🌇 PM Dropoff
           </Text>
           <Text style={[styles.tabCount, activePeriod === 'PM' && styles.activeTabCount]}>
-            {activePeriod === 'PM' ? routes.length : 0}
+            {routeCounts?.pmCount ?? 0}
           </Text>
         </TouchableOpacity>
       </View>

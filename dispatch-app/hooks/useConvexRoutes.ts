@@ -7,12 +7,14 @@
 import { useQuery, useMutation } from 'convex/react';
 import { api } from '../convex/_generated/api';
 import { Id } from '../convex/_generated/dataModel';
+import { useUser } from '@clerk/clerk-expo';
 
 /**
  * Get routes for a specific date and period (AM/PM)
  */
 export function useRoutesForDatePeriod(date: string, period: 'AM' | 'PM') {
-  return useQuery(api.assignments.getForDatePeriod, { date, period });
+  const routes = useQuery(api.assignments.getForDatePeriod, { date, period });
+  return routes;
 }
 
 /**
@@ -26,7 +28,8 @@ export function useRouteDateRange(startDate: string, endDate: string) {
  * Get unassigned children for date/period
  */
 export function useUnassignedChildren(date: string, period: 'AM' | 'PM') {
-  return useQuery(api.assignments.getUnassignedChildren, { date, period });
+  const children = useQuery(api.assignments.getUnassignedChildren, { date, period });
+  return children;
 }
 
 /**
@@ -150,5 +153,9 @@ export function useEventsByType(eventType: string, limit?: number) {
  */
 export function useEventsForDate(date: string) {
   return useQuery(api.dispatchEvents.getForDate, { date });
+}
+
+export function useRouteCountsForDate(date: string) {
+  return useQuery(api.assignments.getRouteCountsForDate, { date });
 }
 
