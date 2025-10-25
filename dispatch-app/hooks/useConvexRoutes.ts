@@ -167,6 +167,14 @@ export function useAddDriver() {
   return useAction(api.drivers.addDriver);
 }
 
+export function useDeactivateDriver() {
+  return useMutation(api.drivers.deactivate);
+}
+
+export function useReactivateDriver() {
+  return useMutation(api.drivers.reactivate);
+}
+
 /**
  * =====================================================================
  * Mutations

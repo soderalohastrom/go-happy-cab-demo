@@ -110,6 +110,27 @@ export const addDriver = action({
   },
 });
 
+/**
+ * Deactivates a driver in Convex (soft delete).
+ * Note: This does not delete the user from Clerk.
+ */
+export const deactivate = internalMutation({
+  args: { id: v.id("drivers") },
+  handler: async (ctx, args) => {
+    await ctx.db.patch(args.id, { active: false, status: "inactive" });
+  },
+});
+
+/**
+ * Reactivates a driver in Convex.
+ */
+export const reactivate = internalMutation({
+  args: { id: v.id("drivers") },
+  handler: async (ctx, args) => {
+    await ctx.db.patch(args.id, { active: true, status: "active" });
+  },
+});
+
 // Get a single driver by ID
 export const get = query({
   args: { id: v.id("drivers") },
@@ -120,16 +141,3 @@ export const get = query({
 
 // NOTE: create/update temporarily disabled for unified schema migration
 // These will be re-implemented to match the full drivers schema (firstName, lastName, employeeId, etc.)
-
-// Deactivate a driver (soft delete)
-export const deactivate = action({
-  args: { id: v.id("drivers") },
-  handler: async (ctx, args) => {
-    await ctx.db.patch(args.id, { 
-      active: false,
-      status: "inactive",
-      updatedAt: new Date().toISOString(),
-    });
-    return args.id;
-  },
-});

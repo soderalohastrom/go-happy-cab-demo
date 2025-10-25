@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { StyleSheet, Text, View, FlatList, TouchableOpacity, ActivityIndicator, Modal, TextInput, Alert, KeyboardAvoidingView, Platform } from 'react-native';
-import { useAllDrivers, useAddDriver } from '../../hooks/useConvexRoutes';
+import { useAllDrivers, useAddDriver, useDeactivateDriver, useReactivateDriver } from '../../hooks/useConvexRoutes';
 import { Id } from '../../convex/_generated/dataModel';
 
 // Define a type for the driver object for clarity
@@ -17,6 +17,8 @@ type Driver = {
 export default function DriversScreen() {
   const drivers = useAllDrivers();
   const addDriver = useAddDriver();
+  const deactivateDriver = useDeactivateDriver();
+  const reactivateDriver = useReactivateDriver();
 
   const [modalVisible, setModalVisible] = useState(false);
   const [newDriver, setNewDriver] = useState({
@@ -45,6 +47,33 @@ export default function DriversScreen() {
     }
   };
 
+  const handleToggleActive = (driver: Driver) => {
+    const action = driver.active ? 'Deactivate' : 'Reactivate';
+    Alert.alert(
+      `${action} Driver`,
+      `Are you sure you want to ${action.toLowerCase()} ${driver.firstName} ${driver.lastName}?`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: action,
+          style: driver.active ? 'destructive' : 'default',
+          onPress: async () => {
+            try {
+              if (driver.active) {
+                await deactivateDriver({ id: driver._id });
+              } else {
+                await reactivateDriver({ id: driver._id });
+              }
+              Alert.alert('Success', `Driver has been ${action.toLowerCase()}d.`);
+            } catch (error: any) {
+              Alert.alert('Error', error.message || `Failed to ${action.toLowerCase()} driver.`);
+            }
+          },
+        },
+      ]
+    );
+  };
+
   const renderDriver = ({ item }: { item: Driver }) => (
     <View style={styles.driverCard}>
       <View style={styles.driverInfo}>
@@ -55,8 +84,11 @@ export default function DriversScreen() {
         <View style={[styles.statusIndicator, item.active ? styles.active : styles.inactive]} />
         <Text style={styles.statusText}>{item.active ? 'Active' : 'Inactive'}</Text>
       </View>
-      <TouchableOpacity style={styles.actionButton}>
-        <Text style={styles.actionButtonText}>{item.active ? 'Deactivate' : 'Activate'}</Text>
+      <TouchableOpacity 
+        style={[styles.actionButton, !item.active && styles.reactivateButton]} 
+        onPress={() => handleToggleActive(item)}
+      >
+        <Text style={styles.actionButtonText}>{item.active ? 'Deactivate' : 'Reactivate'}</Text>
       </TouchableOpacity>
     </View>
   );
@@ -233,6 +265,11 @@ const styles = StyleSheet.create({
     color: '#333',
     fontWeight: '500',
     fontSize: 12,
+  },
+  reactivateButton: {
+    backgroundColor: '#E8F5E9', // A light green to indicate a positive action
+    borderColor: '#4CAF50',
+    borderWidth: 1,
   },
   // Modal Styles
   modalOverlay: {
