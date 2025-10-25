@@ -4,7 +4,7 @@
  * Provides React hooks for querying and mutating routes, children, and drivers
  */
 
-import { useQuery, useMutation } from 'convex/react';
+import { useQuery, useMutation, useAction } from 'convex/react';
 import { api } from '../convex/_generated/api';
 import { Id } from '../convex/_generated/dataModel';
 import { useUser } from '@clerk/clerk-expo';
@@ -162,4 +162,13 @@ export function useRouteCountsForDate(date: string) {
 export function useAllDrivers() {
   return useQuery(api.drivers.listAll);
 }
+
+export function useAddDriver() {
+  return useAction(api.drivers.addDriver);
+}
+
+/**
+ * =====================================================================
+ * Mutations
+ */
 

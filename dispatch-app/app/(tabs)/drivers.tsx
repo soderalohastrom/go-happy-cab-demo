@@ -1,6 +1,6 @@
-import React from 'react';
-import { StyleSheet, Text, View, FlatList, TouchableOpacity, ActivityIndicator } from 'react-native';
-import { useAllDrivers } from '../../hooks/useConvexRoutes';
+import React, { useState } from 'react';
+import { StyleSheet, Text, View, FlatList, TouchableOpacity, ActivityIndicator, Modal, TextInput, Alert, KeyboardAvoidingView, Platform } from 'react-native';
+import { useAllDrivers, useAddDriver } from '../../hooks/useConvexRoutes';
 import { Id } from '../../convex/_generated/dataModel';
 
 // Define a type for the driver object for clarity
@@ -16,6 +16,34 @@ type Driver = {
 
 export default function DriversScreen() {
   const drivers = useAllDrivers();
+  const addDriver = useAddDriver();
+
+  const [modalVisible, setModalVisible] = useState(false);
+  const [newDriver, setNewDriver] = useState({
+    firstName: '',
+    lastName: '',
+    email: '',
+    phone: '',
+  });
+  const [isAdding, setIsAdding] = useState(false);
+
+  const handleAddDriver = async () => {
+    if (!newDriver.firstName || !newDriver.lastName || !newDriver.email || !newDriver.phone) {
+      Alert.alert('Error', 'Please fill in all fields.');
+      return;
+    }
+    setIsAdding(true);
+    try {
+      await addDriver(newDriver);
+      Alert.alert('Success', 'Driver added successfully!');
+      setModalVisible(false);
+      setNewDriver({ firstName: '', lastName: '', email: '', phone: '' });
+    } catch (error: any) {
+      Alert.alert('Error', error.message || 'Failed to add driver.');
+    } finally {
+      setIsAdding(false);
+    }
+  };
 
   const renderDriver = ({ item }: { item: Driver }) => (
     <View style={styles.driverCard}>
@@ -37,7 +65,7 @@ export default function DriversScreen() {
     <View style={styles.container}>
       <View style={styles.header}>
         <Text style={styles.title}>Driver Management</Text>
-        <TouchableOpacity style={styles.addButton}>
+        <TouchableOpacity style={styles.addButton} onPress={() => setModalVisible(true)}>
           <Text style={styles.addButtonText}>+ Add Driver</Text>
         </TouchableOpacity>
       </View>
@@ -52,6 +80,65 @@ export default function DriversScreen() {
           contentContainerStyle={styles.listContainer}
         />
       )}
+
+      <Modal
+        animationType="slide"
+        transparent={true}
+        visible={modalVisible}
+        onRequestClose={() => setModalVisible(false)}
+      >
+        <KeyboardAvoidingView 
+          behavior={Platform.OS === "ios" ? "padding" : "height"}
+          style={styles.modalOverlay}
+        >
+          <View style={styles.modalContent}>
+            <Text style={styles.modalTitle}>Add New Driver</Text>
+            <TextInput
+              style={styles.input}
+              placeholder="First Name"
+              placeholderTextColor="#999"
+              value={newDriver.firstName}
+              onChangeText={(text) => setNewDriver({ ...newDriver, firstName: text })}
+            />
+            <TextInput
+              style={styles.input}
+              placeholder="Last Name"
+              placeholderTextColor="#999"
+              value={newDriver.lastName}
+              onChangeText={(text) => setNewDriver({ ...newDriver, lastName: text })}
+            />
+            <TextInput
+              style={styles.input}
+              placeholder="Email Address"
+              placeholderTextColor="#999"
+              value={newDriver.email}
+              onChangeText={(text) => setNewDriver({ ...newDriver, email: text })}
+              keyboardType="email-address"
+              autoCapitalize="none"
+            />
+            <TextInput
+              style={styles.input}
+              placeholder="Phone Number"
+              placeholderTextColor="#999"
+              value={newDriver.phone}
+              onChangeText={(text) => setNewDriver({ ...newDriver, phone: text })}
+              keyboardType="phone-pad"
+            />
+            <View style={styles.modalActions}>
+              <TouchableOpacity style={[styles.modalButton, styles.cancelButton]} onPress={() => setModalVisible(false)}>
+                <Text style={styles.modalButtonText}>Cancel</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={[styles.modalButton, styles.submitButton]} onPress={handleAddDriver} disabled={isAdding}>
+                {isAdding ? (
+                  <ActivityIndicator color="#FFFFFF" />
+                ) : (
+                  <Text style={[styles.modalButtonText, styles.submitButtonText]}>Add Driver</Text>
+                )}
+              </TouchableOpacity>
+            </View>
+          </View>
+        </KeyboardAvoidingView>
+      </Modal>
     </View>
   );
 }
@@ -146,5 +233,57 @@ const styles = StyleSheet.create({
     color: '#333',
     fontWeight: '500',
     fontSize: 12,
+  },
+  // Modal Styles
+  modalOverlay: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+  },
+  modalContent: {
+    width: '90%',
+    backgroundColor: '#FFFFFF',
+    borderRadius: 12,
+    padding: 24,
+    alignItems: 'stretch',
+  },
+  modalTitle: {
+    fontSize: 20,
+    fontWeight: 'bold',
+    marginBottom: 20,
+    textAlign: 'center',
+  },
+  input: {
+    backgroundColor: '#F5F5F5',
+    borderRadius: 8,
+    padding: 12,
+    marginBottom: 16,
+    fontSize: 16,
+  },
+  modalActions: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginTop: 10,
+  },
+  modalButton: {
+    flex: 1,
+    paddingVertical: 12,
+    borderRadius: 8,
+    alignItems: 'center',
+    marginHorizontal: 5,
+  },
+  cancelButton: {
+    backgroundColor: '#E0E0E0',
+  },
+  submitButton: {
+    backgroundColor: '#2196F3',
+  },
+  modalButtonText: {
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  submitButtonText: {
+    color: '#FFFFFF',
   },
 });
