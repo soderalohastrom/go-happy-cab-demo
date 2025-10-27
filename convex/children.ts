@@ -32,6 +32,14 @@ export const get = query({
   },
 });
 
+// Get a single child by ID (alternative naming for Driver App compatibility)
+export const getById = query({
+  args: { childId: v.id("children") },
+  handler: async (ctx, args) => {
+    return await ctx.db.get(args.childId);
+  },
+});
+
 // NOTE: create/update temporarily disabled for unified schema migration
 // These will be re-implemented to match the full children schema (firstName, lastName, etc.)
 

@@ -24,11 +24,18 @@ export default defineSchema({
     lastName: v.string(),
     email: v.string(),
     phone: v.string(),
-    
+
+    // NEW: CSV Import Fields - Driver Details
+    primaryLanguage: v.optional(v.string()), // Driver's primary language (e.g., "Portuguese", "English")
+    availabilityAM: v.optional(v.string()), // AM availability: "YES", "NO", "LIMITED"
+    availabilityPM: v.optional(v.string()), // PM availability: "YES", "NO", "LIMITED"
+    startDate: v.optional(v.string()), // Driver hire date (ISO format)
+    specialEquipment: v.optional(v.string()), // Vehicle equipment (e.g., "Car Seats, Booster")
+
     // Authentication (driver app)
     pin: v.optional(v.string()), // Hashed with salt
     biometricEnabled: v.optional(v.boolean()),
-    
+
     // Status
     status: v.union(
       v.literal("active"),
@@ -89,11 +96,19 @@ export default defineSchema({
     dateOfBirth: v.string(),
     grade: v.string(),
     studentId: v.string(),
-    
+
     // School Info
     schoolId: v.optional(v.string()),
     schoolName: v.string(),
-    
+
+    // NEW: CSV Import Fields - Scheduling & Operations
+    pickupTime: v.optional(v.string()), // Scheduled AM pickup time (e.g., "8:30 AM")
+    classStartTime: v.optional(v.string()), // School start time (e.g., "9:00 AM")
+    classEndTime: v.optional(v.string()), // School end time for PM routes (e.g., "3:20 PM")
+    rideType: v.optional(v.string()), // "SOLO" or "SHARED"
+    pickupNotes: v.optional(v.string()), // Special instructions from master sheet
+    homeLanguage: v.optional(v.string()), // Primary language at home (e.g., "Spanish", "Portuguese")
+
     // Addresses (driver app needs)
     homeAddress: v.optional(v.object({
       street: v.string(),
@@ -643,7 +658,7 @@ export default defineSchema({
    */
   dailySummaries: defineTable({
     date: v.string(), // ISO date
-    
+
     // Counts
     totalRoutesAM: v.number(),
     totalRoutesPM: v.number(),
@@ -651,20 +666,35 @@ export default defineSchema({
     completedRoutesPM: v.number(),
     activeChildren: v.number(),
     activeDrivers: v.number(),
-    
+
     // Issues
     noShows: v.number(),
     delays: v.number(),
     emergencies: v.number(),
-    
+
     // Performance
     onTimeRate: v.number(), // percentage
     averageCompletionTime: v.optional(v.number()), // minutes
-    
+
     // Metadata
     calculatedAt: v.string(),
     createdAt: v.string(),
   })
     .index("by_date", ["date"]),
+
+  /**
+   * Payroll Configuration - Pay rates and deductions
+   * NEW TABLE for payroll reporting feature
+   */
+  payrollConfig: defineTable({
+    // Pay rates (in dollars)
+    baseRate: v.number(), // Default pay per completed trip
+    noShowDeduction: v.number(), // Amount deducted for no-show trips
+    preCancelDeduction: v.number(), // Amount deducted for pre-cancelled trips
+
+    // Metadata
+    updatedAt: v.string(),
+    updatedBy: v.optional(v.string()), // Clerk user ID or "system"
+  }),
 });
 

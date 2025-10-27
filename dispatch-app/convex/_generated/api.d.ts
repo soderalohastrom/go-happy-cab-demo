@@ -11,8 +11,10 @@
 import type * as assignments from "../assignments.js";
 import type * as children from "../children.js";
 import type * as clearData from "../clearData.js";
+import type * as config from "../config.js";
 import type * as driverActions from "../driverActions.js";
 import type * as drivers from "../drivers.js";
+import type * as payroll from "../payroll.js";
 import type * as seed from "../seed.js";
 
 import type {
@@ -33,8 +35,10 @@ declare const fullApi: ApiFromModules<{
   assignments: typeof assignments;
   children: typeof children;
   clearData: typeof clearData;
+  config: typeof config;
   driverActions: typeof driverActions;
   drivers: typeof drivers;
+  payroll: typeof payroll;
   seed: typeof seed;
 }>;
 declare const fullApiWithMounts: typeof fullApi;

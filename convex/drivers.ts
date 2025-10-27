@@ -139,5 +139,16 @@ export const get = query({
   },
 });
 
+// Get driver by Clerk user ID
+export const getByClerkId = query({
+  args: { clerkId: v.string() },
+  handler: async (ctx, args) => {
+    return await ctx.db
+      .query("drivers")
+      .withIndex("by_clerk_id", (q) => q.eq("clerkId", args.clerkId))
+      .first();
+  },
+});
+
 // NOTE: create/update temporarily disabled for unified schema migration
 // These will be re-implemented to match the full drivers schema (firstName, lastName, employeeId, etc.)

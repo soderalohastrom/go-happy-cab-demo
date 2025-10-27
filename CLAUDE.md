@@ -29,7 +29,7 @@ npm run preview
 
 ### Dispatch App (Expo)
 ```bash
-# Terminal 1: Convex backend sync (if not already running)
+# Terminal 1: Convex backend sync (REQUIRED - from main project root!)
 npx convex dev
 
 # Terminal 2: Expo dev server
@@ -37,12 +37,24 @@ cd dispatch-app
 npx expo start        # Press 'i' for iOS, 'a' for Android
 ```
 
+**⚠️ CRITICAL:** See [CONVEX_DEV_WORKFLOW.md](CONVEX_DEV_WORKFLOW.md) for correct Convex dev setup!
+- **NEVER** run `npx convex dev` from dispatch-app or driver-app directories
+- **ALWAYS** run from main project root (`/Users/soderstrom/2025/October/go-happy-cab-demo`)
+
 ### Convex Operations
 ```bash
-npx convex run seed:seedData              # Seed initial data
+# Test Data
+npx convex run seed:seedData              # Seed initial test data (18 children, 12 drivers)
 npx convex dashboard                      # Open Convex dashboard
 npx convex logs                           # Stream live logs
 npx convex run <function>                 # Run specific function
+
+# Production Data Import (from Google Sheets CSV exports)
+npx convex run importRealData:clearAllData                           # Clear test data first
+npx convex run importRealData:importChildren --csv "paste_csv_here" # Import ~120 children
+npx convex run importRealData:importDrivers --csv "paste_csv_here"  # Import ~67 drivers
+npx convex run importRealData:createInitialRoutes --date "2025-10-28" # Auto-pair routes
+npx convex run importRealData:getImportStats                        # Verify import success
 ```
 
 ### Important: Updating Dispatch App After Schema Changes
@@ -207,3 +219,97 @@ The Dispatch App is designed for early-morning route assignment:
 3. **IDs are typed** - Use `v.id("tableName")` in schemas
 4. **Indexes required for filters** - Add indexes for query performance
 5. **Environment variables** - Use `VITE_` prefix for client-side access
+
+## Production Data Import Process
+
+### Overview
+Go Happy Cab serves ~120 children and ~67 Brazilian drivers in Marin County. Production data is maintained in Google Sheets and imported via CSV files.
+
+### Import Workflow
+
+**1. Google Sheets → CSV Export**
+- User exports `children.csv` and `drivers.csv` from master Google Sheets
+- CSV column specs documented in [SCHEMA_UPDATES.md](SCHEMA_UPDATES.md)
+- Includes GPS coordinates, languages, special needs, equipment requirements
+
+**2. Clear Test Data**
+```bash
+npx convex run importRealData:clearAllData
+# Returns: { success: true, deletedCount: 300, message: "Cleared 300 records..." }
+```
+
+**3. Import Children (~120 records)**
+```bash
+npx convex run importRealData:importChildren --csv "child_id,first_name,last_name,..."
+# Returns: { success: true, imported: 120, errors: 0, message: "Imported 120 children..." }
+```
+
+**4. Import Drivers (~67 records)**
+```bash
+npx convex run importRealData:importDrivers --csv "driver_id,badge_id,first_name,..."
+# Returns: { success: true, imported: 67, errors: 0, message: "Imported 67 drivers..." }
+```
+
+**5. Create Initial Route Assignments**
+```bash
+npx convex run importRealData:createInitialRoutes --date "2025-10-28"
+# Auto-pairs children with drivers (round-robin for now, badge-based pairing coming)
+# Returns: { success: true, created: 240, targetDate: "2025-10-28", message: "Created 240 route pairs..." }
+```
+
+**6. Verify Import Success**
+```bash
+npx convex run importRealData:getImportStats
+# Returns: {
+#   totalChildren: 120,
+#   totalDrivers: 67,
+#   totalRoutes: 240,
+#   childrenWithSpecialNeeds: 45,
+#   childrenWithGPS: 118,
+#   driversWithLanguage: 65,
+#   childrenByLanguage: { "Spanish": 80, "Portuguese": 30, "English": 10 },
+#   driversByLanguage: { "Portuguese": 60, "English": 7 }
+# }
+```
+
+### CSV Field Mappings
+
+**Children CSV → Convex Schema:**
+- `child_id` → `studentId`
+- `badge_id` → Used for route pairing (if provided)
+- `special_needs` → Parsed as comma-separated array
+- `home_latitude`, `home_longitude` → `homeAddress.coordinates`
+- `school_latitude`, `school_longitude` → `schoolAddress.coordinates`
+- `pickup_time`, `class_start_time`, `class_end_time` → Schedule fields
+- `ride_type`, `pickup_notes`, `home_language` → Operational fields
+
+**Drivers CSV → Convex Schema:**
+- `driver_id` → `studentId` (for reference)
+- `badge_id` → `employeeId` (primary identifier)
+- `primary_language`, `availability_am`, `availability_pm` → Operational fields
+- `special_equipment` → Vehicle capabilities (e.g., "Car Seats, Wheelchair Accessible")
+- `start_date` → Driver hire date
+
+### Badge-Based Route Pairing
+- Children with `badge_id` values (e.g., `BADGE023`) will be auto-paired with matching drivers
+- Children without `badge_id` remain unassigned for manual drag-and-drop assignment
+- Badge format: `BADGE001` through `BADGE069`
+
+### Data Validation
+The import script performs validation:
+- Required fields checked (names, IDs, contact info)
+- GPS coordinates parsed as floats (decimal degrees)
+- Special needs parsed as arrays
+- Duplicate prevention via unique indexes
+- Error reporting with detailed messages
+
+### Related Documentation
+- [SCHEMA_UPDATES.md](SCHEMA_UPDATES.md) - Complete CSV column specifications and schema changes
+- [HANDOFF_UI_UPDATES.md](HANDOFF_UI_UPDATES.md) - UI enhancement opportunities for Driver App
+- [convex/importRealData.ts](convex/importRealData.ts) - Import script source code
+
+### Common Import Issues
+1. **CSV parsing errors** - Ensure no commas in address fields (use quotes)
+2. **Missing coordinates** - Import still succeeds, GPS features unavailable for those records
+3. **Invalid badge IDs** - Routes won't auto-create, manual assignment required
+4. **Duplicate records** - Clear data first or handle duplicates in Google Sheets before export
