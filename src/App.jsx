@@ -59,12 +59,20 @@ function PairingUI() {
   const currentAssignments = assignmentsData?.[activeTab] || [];
 
   const sortedUnpairedChildren = useMemo(
-    () => [...unassignedChildren].sort((a, b) => a.name.localeCompare(b.name)),
+    () => [...unassignedChildren].sort((a, b) => {
+      const aName = `${a.firstName || ''} ${a.lastName || ''}`.trim();
+      const bName = `${b.firstName || ''} ${b.lastName || ''}`.trim();
+      return aName.localeCompare(bName);
+    }),
     [unassignedChildren]
   );
 
   const sortedUnpairedDrivers = useMemo(
-    () => [...unassignedDrivers].sort((a, b) => a.name.localeCompare(b.name)),
+    () => [...unassignedDrivers].sort((a, b) => {
+      const aName = `${a.firstName || ''} ${a.lastName || ''}`.trim();
+      const bName = `${b.firstName || ''} ${b.lastName || ''}`.trim();
+      return aName.localeCompare(bName);
+    }),
     [unassignedDrivers]
   );
 
@@ -185,7 +193,7 @@ function PairingUI() {
           touchAction: 'none',
         }}
       >
-        <div className="font-semibold text-rose-900">👧 {child.name}</div>
+        <div className="font-semibold text-rose-900">👧 {child.firstName} {child.lastName}</div>
         <div className="text-xs text-rose-700 mt-1">📍 Needs driver</div>
       </div>
     );
@@ -223,7 +231,7 @@ function PairingUI() {
           touchAction: 'none',
         }}
       >
-        <div className="font-semibold text-blue-900">🚗 {driver.name}</div>
+        <div className="font-semibold text-blue-900">🚗 {driver.firstName} {driver.lastName}</div>
         <div className="text-xs text-blue-700 mt-1">🚕 Available</div>
       </div>
     );
