@@ -10,6 +10,7 @@ import {
   useSensors,
   useDraggable,
   useDroppable,
+  DragOverlay,
 } from '@dnd-kit/core';
 import DateNavigator from './components/DateNavigator';
 import './index.css';
@@ -22,6 +23,8 @@ function PairingUI() {
 
   const [activeTab, setActiveTab] = useState('AM');
   const [sortBy, setSortBy] = useState('child');
+  const [activeDragItem, setActiveDragItem] = useState(null);
+  const [toast, setToast] = useState(null);
 
   // Convex queries
   const allChildren = useQuery(api.children.list) || [];
@@ -85,8 +88,39 @@ function PairingUI() {
     }
   }, [currentAssignments, sortBy]);
 
+  const showToast = (message, type = 'success') => {
+    setToast({ message, type });
+    setTimeout(() => setToast(null), 3000);
+  };
+
+  const handleDragStart = (event) => {
+    const { active } = event;
+    const activeIdParts = active.id.toString().split('-');
+    const draggedType = activeIdParts[0];
+    const draggedId = activeIdParts.slice(1).join('-');
+
+    if (draggedType === 'child') {
+      const child = unassignedChildren.find((c) => c._id === draggedId);
+      if (child) {
+        setActiveDragItem({
+          type: 'child',
+          data: child,
+        });
+      }
+    } else if (draggedType === 'driver') {
+      const driver = unassignedDrivers.find((d) => d._id === draggedId);
+      if (driver) {
+        setActiveDragItem({
+          type: 'driver',
+          data: driver,
+        });
+      }
+    }
+  };
+
   const handleDragEnd = async (event) => {
     const { active, over } = event;
+    setActiveDragItem(null);
 
     if (!over) return;
 
@@ -123,9 +157,10 @@ function PairingUI() {
             driverId: driver._id,
             status: 'scheduled',
           });
+          showToast(`✅ Paired ${child.firstName} with ${driver.firstName} ${driver.lastName}`);
         } catch (error) {
           console.error('Failed to create assignment:', error);
-          alert(error.message || 'Failed to create assignment');
+          showToast(error.message || 'Failed to create assignment', 'error');
         }
       }
     }
@@ -144,9 +179,10 @@ function PairingUI() {
             driverId: driver._id,
             status: 'scheduled',
           });
+          showToast(`✅ Paired ${child.firstName} with ${driver.firstName} ${driver.lastName}`);
         } catch (error) {
           console.error('Failed to create assignment:', error);
-          alert(error.message || 'Failed to create assignment');
+          showToast(error.message || 'Failed to create assignment', 'error');
         }
       }
     }
@@ -182,12 +218,12 @@ function PairingUI() {
         ref={combinedRef}
         {...listeners}
         {...attributes}
-        className={`bg-rose-50 border-2 p-3 rounded-lg cursor-move transition touch-none select-none ${
+        className={`bg-rose-50 border-2 p-3 rounded-lg cursor-move transition-all duration-200 touch-none select-none ${
           isDragging
             ? 'opacity-50 scale-95 bg-rose-100 shadow-lg border-rose-400'
             : isOver
-            ? 'bg-rose-200 border-rose-500 shadow-xl scale-105'
-            : 'border-rose-300 hover:bg-rose-100 hover:shadow-md'
+            ? 'bg-rose-200 border-rose-500 shadow-xl scale-110 border-dashed border-4 ring-4 ring-rose-300 animate-pulse'
+            : 'border-rose-300 hover:bg-rose-100 hover:shadow-md hover:scale-105'
         }`}
         style={{
           touchAction: 'none',
@@ -220,12 +256,12 @@ function PairingUI() {
         ref={combinedRef}
         {...listeners}
         {...attributes}
-        className={`bg-blue-50 border-2 p-3 rounded-lg cursor-move transition touch-none select-none ${
+        className={`bg-blue-50 border-2 p-3 rounded-lg cursor-move transition-all duration-200 touch-none select-none ${
           isDragging
             ? 'opacity-50 scale-95 bg-blue-100 shadow-lg border-blue-400'
             : isOver
-            ? 'bg-blue-200 border-blue-500 shadow-xl scale-105'
-            : 'border-blue-300 hover:bg-blue-100 hover:shadow-md'
+            ? 'bg-blue-200 border-blue-500 shadow-xl scale-110 border-dashed border-4 ring-4 ring-blue-300 animate-pulse'
+            : 'border-blue-300 hover:bg-blue-100 hover:shadow-md hover:scale-105'
         }`}
         style={{
           touchAction: 'none',
@@ -271,6 +307,7 @@ function PairingUI() {
     <DndContext
       sensors={sensors}
       collisionDetection={closestCenter}
+      onDragStart={handleDragStart}
       onDragEnd={handleDragEnd}
     >
       <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-50 p-4">
@@ -483,6 +520,53 @@ function PairingUI() {
           </div>
         </div>
       </div>
+
+      {/* DragOverlay for desktop visual feedback */}
+      <DragOverlay dropAnimation={null}>
+        {activeDragItem ? (
+          <div
+            className={`${
+              activeDragItem.type === 'child'
+                ? 'bg-rose-100 border-rose-400'
+                : 'bg-blue-100 border-blue-400'
+            } border-2 p-3 rounded-lg shadow-2xl cursor-grabbing opacity-90 transform scale-110`}
+            style={{ touchAction: 'none' }}
+          >
+            <div
+              className={`font-semibold ${
+                activeDragItem.type === 'child' ? 'text-rose-900' : 'text-blue-900'
+              }`}
+            >
+              {activeDragItem.type === 'child' ? '👧' : '🚗'}{' '}
+              {activeDragItem.data.firstName} {activeDragItem.data.lastName}
+            </div>
+            <div
+              className={`text-xs mt-1 ${
+                activeDragItem.type === 'child' ? 'text-rose-700' : 'text-blue-700'
+              }`}
+            >
+              {activeDragItem.type === 'child' ? '📍 Drag to driver' : '🚕 Drag to child'}
+            </div>
+          </div>
+        ) : null}
+      </DragOverlay>
+
+      {/* Toast Notification */}
+      {toast && (
+        <div
+          className={`fixed top-4 right-4 z-50 px-6 py-4 rounded-lg shadow-2xl transform transition-all duration-300 ${
+            toast.type === 'success'
+              ? 'bg-green-500 text-white'
+              : 'bg-red-500 text-white'
+          }`}
+          style={{ animation: 'slideInRight 0.3s ease-out' }}
+        >
+          <div className="flex items-center gap-2">
+            <span className="text-xl">{toast.type === 'success' ? '✅' : '❌'}</span>
+            <span className="font-medium">{toast.message}</span>
+          </div>
+        </div>
+      )}
     </DndContext>
   );
 }
