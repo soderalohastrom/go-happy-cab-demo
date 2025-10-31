@@ -169,6 +169,9 @@ export const importChildren = internalMutation({
           pickupNotes: safeString(row.pickup_notes),
           homeLanguage: safeString(row.home_language),
 
+          // NEW: Capture assigned_badge_id for carpool auto-pairing
+          assignedBadgeId: safeString(row.assigned_badge_id),
+
           // School Info
           schoolId: safeString(row.school_jurisdiction),
           schoolName,
@@ -358,21 +361,10 @@ export const createInitialRoutes = internalMutation({
     const targetDate =
       args.date || getNextMonday().toISOString().split("T")[0];
 
-    // Get all children with badge assignments (from CSV column: badge_id)
+    // Get all children and drivers
     const allChildren = await ctx.db.query("children").collect();
-    const childrenWithBadges = allChildren.filter(
-      (child) => child.parentIds && child.parentIds.length > 0
-    );
-
-    // NOTE: The CSV schema stores badge_id in the badge_id column
-    // We need to modify the import to store this for route creation
-    // For now, this will create routes for ALL children
-
-    const created: string[] = [];
-    const errors: string[] = [];
-
-    // Get all drivers for assignment
     const drivers = await ctx.db.query("drivers").collect();
+
     if (drivers.length === 0) {
       return {
         success: false,
@@ -380,17 +372,97 @@ export const createInitialRoutes = internalMutation({
       };
     }
 
-    // Simple round-robin assignment for children without badge_id
-    let driverIndex = 0;
+    const created: string[] = [];
+    const errors: string[] = [];
 
-    for (const child of allChildren) {
+    // Group children by assignedBadgeId for carpool creation
+    const carpoolGroups = new Map<string, typeof allChildren>();
+    const childrenWithoutBadge: typeof allChildren = [];
+
+    allChildren.forEach((child) => {
+      if (child.assignedBadgeId) {
+        if (!carpoolGroups.has(child.assignedBadgeId)) {
+          carpoolGroups.set(child.assignedBadgeId, []);
+        }
+        carpoolGroups.get(child.assignedBadgeId)!.push(child);
+      } else {
+        childrenWithoutBadge.push(child);
+      }
+    });
+
+    // Create routes for badge-based carpools
+    for (const [badgeId, children] of carpoolGroups.entries()) {
+      // Find driver with matching employeeId (badge)
+      const driver = drivers.find((d) => d.employeeId === badgeId);
+
+      if (!driver) {
+        errors.push(
+          `Badge ${badgeId} has no matching driver (${children.length} children affected)`
+        );
+        continue;
+      }
+
+      // Validate max 3 children per carpool
+      if (children.length > 3) {
+        errors.push(
+          `Badge ${badgeId} has ${children.length} children (max 3 allowed)`
+        );
+        continue;
+      }
+
+      // Create routes for each child in the carpool
+      for (const child of children) {
+        try {
+          // Create AM route
+          await ctx.db.insert("routes", {
+            date: targetDate,
+            period: "AM",
+            type: "pickup",
+            driverId: driver._id,
+            childId: child._id,
+            status: "scheduled",
+            priority: "normal",
+            scheduledTime: child.pickupTime || "8:00 AM",
+            createdAt: now,
+            createdBy: "system_import",
+            updatedAt: now,
+          });
+
+          // Create PM route
+          await ctx.db.insert("routes", {
+            date: targetDate,
+            period: "PM",
+            type: "dropoff",
+            driverId: driver._id,
+            childId: child._id,
+            status: "scheduled",
+            priority: "normal",
+            scheduledTime: child.classEndTime || "3:00 PM",
+            createdAt: now,
+            createdBy: "system_import",
+            updatedAt: now,
+          });
+
+          created.push(
+            `${child.firstName} ${child.lastName} → ${driver.firstName} ${driver.lastName} (Badge ${badgeId})`
+          );
+        } catch (error: any) {
+          errors.push(
+            `Failed to create route for ${child.firstName} ${child.lastName}: ${error.message}`
+          );
+        }
+      }
+    }
+
+    // Round-robin assignment for children without badge (manual assignment needed)
+    let driverIndex = 0;
+    for (const child of childrenWithoutBadge) {
       try {
-        // Assign to next driver (round-robin)
         const driver = drivers[driverIndex % drivers.length];
         driverIndex++;
 
         // Create AM route
-        const amRouteId = await ctx.db.insert("routes", {
+        await ctx.db.insert("routes", {
           date: targetDate,
           period: "AM",
           type: "pickup",
@@ -405,7 +477,7 @@ export const createInitialRoutes = internalMutation({
         });
 
         // Create PM route
-        const pmRouteId = await ctx.db.insert("routes", {
+        await ctx.db.insert("routes", {
           date: targetDate,
           period: "PM",
           type: "dropoff",
@@ -419,7 +491,9 @@ export const createInitialRoutes = internalMutation({
           updatedAt: now,
         });
 
-        created.push(`${child.firstName} ${child.lastName} → ${driver.firstName} ${driver.lastName}`);
+        created.push(
+          `${child.firstName} ${child.lastName} → ${driver.firstName} ${driver.lastName} (no badge)`
+        );
       } catch (error: any) {
         errors.push(
           `Failed to create route for ${child.firstName} ${child.lastName}: ${error.message}`
