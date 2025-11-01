@@ -238,16 +238,17 @@ export const create = mutation({
       throw new Error("Child is already assigned for this period");
     }
 
-    // Check for existing assignment for the driver
-    const existingDriverAssignment = await ctx.db
+    // CARPOOL SUPPORT: Check if driver has reached max carpool size (max 3 children)
+    const existingDriverAssignments = await ctx.db
       .query("routes")
       .withIndex("by_driver_date_period", (q) =>
         q.eq("driverId", args.driverId).eq("date", args.date).eq("period", args.period)
       )
-      .first();
+      .collect();
 
-    if (existingDriverAssignment) {
-      throw new Error("Driver is already assigned for this period");
+    const MAX_CARPOOL_SIZE = 3;
+    if (existingDriverAssignments.length >= MAX_CARPOOL_SIZE) {
+      throw new Error(`Driver already has ${MAX_CARPOOL_SIZE} children assigned (max carpool size)`);
     }
 
     const child = await ctx.db.get(args.childId);
