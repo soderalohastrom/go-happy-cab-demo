@@ -36,17 +36,13 @@ export function DragOverlay({ isDragging, absoluteX, absoluteY, wrapperOffsetY, 
   let relativeY = absoluteY;
 
   if (Platform.OS === 'web') {
-    // WEB FIX: On web, gesture handler gives us page coordinates (including scroll)
-    // We need to subtract the scroll offset to get viewport-relative coordinates
-    // The wrapper offset on web is often incorrect, so we ignore it
+    // WEB FIX: Use raw gesture coordinates directly on web
+    // The wrapper offset measurement is unreliable on web, and gesture coords
+    // appear to already be in the right coordinate space for positioning
     relativeX = absoluteX;
     relativeY = absoluteY;
 
-    // Account for page scroll on web
-    if (typeof window !== 'undefined') {
-      relativeY = absoluteY - window.scrollY;
-      relativeX = absoluteX - window.scrollX;
-    }
+    // NO scroll correction needed - raw coords work correctly on web
   } else {
     // NATIVE: Gesture coordinates are absolute screen coordinates
     // We must translate them to wrapper-relative coords by subtracting wrapper offset
@@ -80,7 +76,9 @@ export function DragOverlay({ isDragging, absoluteX, absoluteY, wrapperOffsetY, 
 
 const styles = StyleSheet.create({
   overlay: {
-    position: 'absolute',
+    // WEB: Use fixed positioning to align with viewport-relative gesture coordinates
+    // NATIVE: Use absolute positioning relative to wrapper
+    position: Platform.OS === 'web' ? 'fixed' as any : 'absolute',
     top: 0,
     left: 0,
     right: 0,
