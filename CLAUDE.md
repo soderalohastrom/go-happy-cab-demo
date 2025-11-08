@@ -118,7 +118,10 @@ The Dispatch App is designed for early-morning route assignment:
 
 **Dispatch App (Expo):** Uses react-native-gesture-handler + reanimated:
 - **Drag Overlay Pattern** ensures dragged card floats above all UI elements.
-- **Coordinate Space Correction** for perfect finger tracking.
+- **Coordinate Space Correction** for perfect finger tracking:
+  - **Native (iOS/Android):** Uses `position: absolute` + wrapperOffsetY correction
+  - **Web:** Uses `position: fixed` for viewport-relative positioning (commit 59591ee)
+  - Raw gesture coordinates work correctly on web without scroll correction
 - Pan gesture for smooth dragging.
 - Drop zone collision detection via absolute window coordinates.
 - Side-by-side columns (children | drivers) for intuitive pairing.
