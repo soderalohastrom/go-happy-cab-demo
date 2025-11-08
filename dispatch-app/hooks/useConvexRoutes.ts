@@ -175,6 +175,26 @@ export function useReactivateDriver() {
   return useMutation(api.drivers.reactivate);
 }
 
+// =============================================================================
+// Children Management
+// =============================================================================
+
+export function useAllChildren() {
+  return useQuery(api.children.listAll);
+}
+
+export function useAddChild() {
+  return useMutation(api.children.create);
+}
+
+export function useDeactivateChild() {
+  return useMutation(api.children.deactivate);
+}
+
+export function useReactivateChild() {
+  return useMutation(api.children.reactivate);
+}
+
 /**
  * =====================================================================
  * Mutations
