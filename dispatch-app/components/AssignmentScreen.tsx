@@ -242,6 +242,32 @@ export default function AssignmentScreen({ date }: AssignmentScreenProps) {
     }
   };
 
+  // TESTING HELPER: Clear all routes for current date/period
+  const handleClearAllRoutes = async () => {
+    Alert.alert(
+      'Clear All Routes?',
+      `This will remove all ${routes.length} routes for ${activePeriod} on ${date}. This is useful for testing.`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Clear All',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              // Remove all routes for this date/period
+              for (const route of routes) {
+                await removeRoute({ id: route._id as any });
+              }
+              Alert.alert('Success', 'All routes cleared!');
+            } catch (error: any) {
+              Alert.alert('Error', error.message || 'Failed to clear routes');
+            }
+          },
+        },
+      ]
+    );
+  };
+
   // Handle remove route
   const handleRemoveRoute = async (routeId: string) => {
     Alert.alert(
@@ -311,7 +337,18 @@ export default function AssignmentScreen({ date }: AssignmentScreenProps) {
 
       Alert.alert('Success', `Carpool created with ${childIds.length} children!`, [{ text: 'OK' }]);
     } catch (error: any) {
-      Alert.alert('Error', error.message || 'Failed to create carpool');
+      const errorMsg = error.message || 'Failed to create carpool';
+
+      // Better error message for "already assigned" scenario
+      if (errorMsg.includes('already assigned')) {
+        Alert.alert(
+          'Already Assigned',
+          'This driver or one of the children is already assigned for this period. To test again:\n\n1. Navigate to a different date, OR\n2. Remove existing routes first (tap X on scheduled routes)\n\nNote: This validation prevents double-booking in production.',
+          [{ text: 'OK' }]
+        );
+      } else {
+        Alert.alert('Error', errorMsg);
+      }
     }
   };
 
@@ -519,23 +556,32 @@ export default function AssignmentScreen({ date }: AssignmentScreenProps) {
         <View style={styles.section}>
           <View style={styles.sectionHeader}>
             <Text style={styles.sectionTitle}>Scheduled Routes ({routes.length})</Text>
-            {/* Sort Toggle */}
-            <View style={styles.sortToggle}>
+            <View style={styles.sectionHeaderRight}>
+              {/* Sort Toggle */}
+              <View style={styles.sortToggle}>
+                <TouchableOpacity
+                  style={[styles.sortButton, sortBy === 'child' && styles.sortButtonActive]}
+                  onPress={() => setSortBy('child')}
+                >
+                  <Text style={[styles.sortButtonText, sortBy === 'child' && styles.sortButtonTextActive]}>
+                    By Child
+                  </Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[styles.sortButton, sortBy === 'driver' && styles.sortButtonActive]}
+                  onPress={() => setSortBy('driver')}
+                >
+                  <Text style={[styles.sortButtonText, sortBy === 'driver' && styles.sortButtonTextActive]}>
+                    By Driver
+                  </Text>
+                </TouchableOpacity>
+              </View>
+              {/* Clear All Button (for testing) */}
               <TouchableOpacity
-                style={[styles.sortButton, sortBy === 'child' && styles.sortButtonActive]}
-                onPress={() => setSortBy('child')}
+                style={styles.clearAllButton}
+                onPress={handleClearAllRoutes}
               >
-                <Text style={[styles.sortButtonText, sortBy === 'child' && styles.sortButtonTextActive]}>
-                  By Child
-                </Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={[styles.sortButton, sortBy === 'driver' && styles.sortButtonActive]}
-                onPress={() => setSortBy('driver')}
-              >
-                <Text style={[styles.sortButtonText, sortBy === 'driver' && styles.sortButtonTextActive]}>
-                  By Driver
-                </Text>
+                <Text style={styles.clearAllButtonText}>🗑️</Text>
               </TouchableOpacity>
             </View>
           </View>
@@ -787,6 +833,11 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
     color: '#333',
   },
+  sectionHeaderRight: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
   sortToggle: {
     flexDirection: 'row',
     backgroundColor: '#F5F5F5',
@@ -808,6 +859,17 @@ const styles = StyleSheet.create({
   },
   sortButtonTextActive: {
     color: '#fff',
+  },
+  clearAllButton: {
+    width: 36,
+    height: 36,
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderRadius: 18,
+    backgroundColor: '#FFEBEE',
+  },
+  clearAllButtonText: {
+    fontSize: 20,
   },
   sectionHint: {
     fontSize: 12,

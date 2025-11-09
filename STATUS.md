@@ -1,10 +1,53 @@
 # Go Happy Cab - Project Status
 
-**Last Updated:** October 26, 2025
-**Status:** 🚀 READY FOR PRODUCTION DATA IMPORT!
+**Last Updated:** November 7, 2025
+**Status:** 🎉 CARPOOL FEATURE COMPLETE + CHILDREN MANAGEMENT TAB READY!
 **Unified Convex:** `colorful-wildcat-524.convex.cloud`
+**Branch:** `feature/carpool-dispatch` (ready to merge to `master`)
 
-## 🚀 **LATEST: CSV IMPORT INFRASTRUCTURE READY!**
+## 🎉 **LATEST: CARPOOL DISPATCH + CHILDREN MANAGEMENT COMPLETE!**
+
+**Nov 7, 2025** - **Major Dispatch App enhancements ready for merge!**
+
+### ✅ Phase 7: Carpool Dispatch + Children Management - COMPLETE
+
+**🚗 Carpool Feature (1-3 Children per Driver):**
+- ✅ **Two-Stage Workflow** - Drag children onto driver → temporary carpool state → tap Done to finalize
+- ✅ **Visual Stacking** - Green driver card shows stacked children (up to 3 max) with counter badge
+- ✅ **One-Directional Drag** - Only children can be dragged onto drivers (prevents accidental driver drags)
+- ✅ **Expandable Route Groups** - Paired routes display as carpool groups (🚗👧👧) with tap-to-expand
+- ✅ **Individual Route Records** - Each child gets separate route record (same driverId/date/period)
+- ✅ **Backend Max Validation** - Convex enforces max 3 children per carpool with clear error messages
+- ✅ **Testing Helper** - "Clear All Routes" button (🗑️) for rapid testing cycles
+- ✅ **Error Handling** - Contextual alerts guide users (e.g., "Already assigned" with testing workarounds)
+
+**👧 Children Management Tab (4th Tab):**
+- ✅ **Full CRUD Operations** - Add, list, deactivate, reactivate children
+- ✅ **Tab Navigation** - New 4th tab between Drivers and Reports with 👧 icon
+- ✅ **Form Fields** - firstName, lastName, grade, schoolName (required) + dateOfBirth, homeLanguage, rideType, studentId (optional)
+- ✅ **Auto-Generated IDs** - Student ID auto-generates if left blank (S-xxxxxx format)
+- ✅ **Scrollable Form** - KeyboardAvoidingView for better mobile UX
+- ✅ **Active/Inactive Toggle** - Color-coded status indicators (green/red) with confirmation dialogs
+- ✅ **Convex Mutations** - Backend `create()` and `reactivate()` functions added
+- ✅ **Hooks Integration** - 4 new hooks: useAllChildren, useAddChild, useDeactivateChild, useReactivateChild
+
+**🌐 Web Drag Position Fix:**
+- ✅ **Platform-Specific Positioning** - Uses `position: fixed` on web vs `position: absolute` on native
+- ✅ **Coordinate Alignment** - Raw gesture coordinates work correctly with viewport-relative positioning
+- ✅ **Cross-Platform Consistency** - Dragged cards follow cursor/finger precisely on all platforms
+
+**📝 Documentation Updates:**
+- ✅ **CLAUDE.md** - Updated with carpool patterns and web drag fix details
+- ✅ **STATUS.md** - This comprehensive update
+- ✅ **Git History** - 9 well-documented commits on `feature/carpool-dispatch` branch
+
+**Ready for Merge:**
+- All features tested and working on iOS, Android, and Web
+- No breaking changes to existing functionality
+- Real-time sync confirmed working between Dispatch and Driver apps
+- Documentation up to date
+
+## 🚀 **PHASE 6: CSV IMPORT INFRASTRUCTURE READY!**
 
 **Oct 26, 2025 PM** - **Ready for real production data (~120 children, ~67 drivers)!**
 
@@ -87,11 +130,16 @@ npx convex run importRealData:getImportStats
 - ✅ **AM/PM period tabs** - Separate route management
 - ✅ **Copy Previous Day's Schedule** - Bulk copy (25 routes tested)
 - 🎉 **Drag-and-drop pairing** - Side-by-side columns for intuitive child→driver assignment
+- 🚗 **Carpool support** - Drag 1-3 children onto driver, temporary state with Done button
+- ✅ **Expandable carpool groups** - Routes display as groups (🚗👧👧) with tap-to-expand
 - ✅ **Real-time Convex sync** - WebSocket updates
-- ✅ **Route removal** - X button to unpair routes
+- ✅ **Route removal** - X button to unpair routes (+ Clear All for testing)
 - ✅ **Status badges** - Live updates from driver actions (pickup/no-show/cancel)
 - ✅ **Unified schema integration** - All 4 schema errors resolved
 - 📊 **Payroll Reporting** - Complete bi-weekly payroll system with export capabilities
+- 👥 **Driver Management** - Full CRUD operations (add, deactivate, reactivate drivers)
+- 👧 **Children Management** - Full CRUD operations (add, deactivate, reactivate children)
+- 🌐 **Cross-platform drag** - Fixed positioning ensures accurate drag on web, iOS, and Android
 
 ### Recent Accomplishments
 

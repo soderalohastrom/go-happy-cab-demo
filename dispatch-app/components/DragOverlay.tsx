@@ -6,7 +6,7 @@
  */
 
 import React from 'react';
-import { View, Text, StyleSheet } from 'react-native';
+import { View, Text, StyleSheet, Platform } from 'react-native';
 import Animated from 'react-native-reanimated';
 
 interface DragOverlayProps {
@@ -31,10 +31,24 @@ export function DragOverlay({ isDragging, absoluteX, absoluteY, wrapperOffsetY, 
   const cardWidth = 180;
   const cardHeight = 50;
 
-  // The gesture handler gives absolute screen coordinates.
-  // We must translate them to be relative to our wrapper view by subtracting the wrapper's offset.
-  const relativeX = absoluteX; // Screen and wrapper origins are usually the same for X
-  const relativeY = absoluteY - wrapperOffsetY;
+  // Platform-specific coordinate correction
+  let relativeX = absoluteX;
+  let relativeY = absoluteY;
+
+  if (Platform.OS === 'web') {
+    // WEB FIX: Use raw gesture coordinates directly on web
+    // The wrapper offset measurement is unreliable on web, and gesture coords
+    // appear to already be in the right coordinate space for positioning
+    relativeX = absoluteX;
+    relativeY = absoluteY;
+
+    // NO scroll correction needed - raw coords work correctly on web
+  } else {
+    // NATIVE: Gesture coordinates are absolute screen coordinates
+    // We must translate them to wrapper-relative coords by subtracting wrapper offset
+    relativeX = absoluteX;
+    relativeY = absoluteY - wrapperOffsetY;
+  }
   
   return (
     <View style={styles.overlay} pointerEvents="none">
@@ -62,7 +76,9 @@ export function DragOverlay({ isDragging, absoluteX, absoluteY, wrapperOffsetY, 
 
 const styles = StyleSheet.create({
   overlay: {
-    position: 'absolute',
+    // WEB: Use fixed positioning to align with viewport-relative gesture coordinates
+    // NATIVE: Use absolute positioning relative to wrapper
+    position: Platform.OS === 'web' ? 'fixed' as any : 'absolute',
     top: 0,
     left: 0,
     right: 0,

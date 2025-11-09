@@ -26,6 +26,12 @@ function PairingUI() {
   const [activeDragItem, setActiveDragItem] = useState(null);
   const [toast, setToast] = useState(null);
 
+  // Carpool state: Map of driverId -> array of childIds (temporary, before "Done")
+  const [driverCarpools, setDriverCarpools] = useState(new Map());
+
+  // Track expanded carpool groups in paired assignments display
+  const [expandedDrivers, setExpandedDrivers] = useState(new Set());
+
   // Convex queries
   const allChildren = useQuery(api.children.list) || [];
   const allDrivers = useQuery(api.drivers.list) || [];
@@ -88,6 +94,23 @@ function PairingUI() {
     }
   }, [currentAssignments, sortBy]);
 
+  // Group assignments by driver for carpool display
+  const carpoolGroups = useMemo(() => {
+    const groups = new Map();
+    currentAssignments.forEach(assignment => {
+      const driverId = assignment.driverId;
+      if (!groups.has(driverId)) {
+        groups.set(driverId, {
+          driverId,
+          driverName: assignment.driverName,
+          assignments: []
+        });
+      }
+      groups.get(driverId).assignments.push(assignment);
+    });
+    return Array.from(groups.values()).sort((a, b) => a.driverName.localeCompare(b.driverName));
+  }, [currentAssignments]);
+
   const showToast = (message, type = 'success') => {
     setToast({ message, type });
     setTimeout(() => setToast(null), 3000);
@@ -126,16 +149,16 @@ function PairingUI() {
 
     // Parse the dragged item ID
     const activeIdParts = active.id.toString().split('-');
-    const draggedType = activeIdParts[0]; // 'child' or 'driver'
+    const draggedType = activeIdParts[0]; // 'child' (drivers no longer draggable)
     const draggedId = activeIdParts.slice(1).join('-'); // Handle IDs with hyphens
 
     // Parse the drop target ID
     const overIdParts = over.id.toString().split('-');
 
-    // Check if it's a drop zone (format: "child-drop-{id}" or "driver-drop-{id}")
+    // Check if it's a drop zone (format: "driver-drop-{id}")
     let targetType, targetId;
     if (overIdParts[1] === 'drop') {
-      targetType = overIdParts[0]; // 'child' or 'driver'
+      targetType = overIdParts[0]; // 'driver'
       targetId = overIdParts.slice(2).join('-');
     } else {
       // Handle old format for backwards compatibility
@@ -143,47 +166,36 @@ function PairingUI() {
       targetId = overIdParts.slice(1).join('-');
     }
 
-    // Child dragged onto Driver
+    // Child dragged onto Driver (one-directional drag)
     if (draggedType === 'child' && (targetType === 'driver' || targetType === 'driver-drop')) {
       const child = unassignedChildren.find((c) => c._id === draggedId);
-      const driver = unassignedDrivers.find((d) => d._id === targetId);
+      const driver = unassignedDrivers.find((d) => d._id === targetId) ||
+                     allDrivers.find((d) => d._id === targetId); // Check all drivers for carpool support
 
       if (child && driver) {
-        try {
-          await createAssignment({
-            date: selectedDate,
-            period: activeTab,
-            childId: child._id,
-            driverId: driver._id,
-            status: 'scheduled',
-          });
-          showToast(`✅ Paired ${child.firstName} with ${driver.firstName} ${driver.lastName}`);
-        } catch (error) {
-          console.error('Failed to create assignment:', error);
-          showToast(error.message || 'Failed to create assignment', 'error');
-        }
-      }
-    }
+        // Get current carpool for this driver
+        const currentCarpool = driverCarpools.get(driver._id) || [];
 
-    // Driver dragged onto Child
-    if (draggedType === 'driver' && (targetType === 'child' || targetType === 'child-drop')) {
-      const driver = unassignedDrivers.find((d) => d._id === draggedId);
-      const child = unassignedChildren.find((c) => c._id === targetId);
-
-      if (driver && child) {
-        try {
-          await createAssignment({
-            date: selectedDate,
-            period: activeTab,
-            childId: child._id,
-            driverId: driver._id,
-            status: 'scheduled',
-          });
-          showToast(`✅ Paired ${child.firstName} with ${driver.firstName} ${driver.lastName}`);
-        } catch (error) {
-          console.error('Failed to create assignment:', error);
-          showToast(error.message || 'Failed to create assignment', 'error');
+        // Validate max 3 children
+        if (currentCarpool.length >= 3) {
+          showToast(`❌ Max 3 children per driver. ${driver.firstName} is full!`, 'error');
+          return;
         }
+
+        // Check if child already in this carpool
+        if (currentCarpool.includes(child._id)) {
+          showToast(`⚠️ ${child.firstName} already in this carpool`, 'error');
+          return;
+        }
+
+        // Add child to temporary carpool state
+        setDriverCarpools(prev => {
+          const next = new Map(prev);
+          next.set(driver._id, [...currentCarpool, child._id]);
+          return next;
+        });
+
+        showToast(`➕ Added ${child.firstName} to ${driver.firstName}'s carpool (${currentCarpool.length + 1}/3)`);
       }
     }
   };
@@ -194,6 +206,68 @@ function PairingUI() {
     } catch (error) {
       console.error('Failed to remove assignment:', error);
       alert('Failed to remove assignment');
+    }
+  };
+
+  // Handle "Done" button click - creates actual routes from carpool
+  const handleDoneClick = async (driverId) => {
+    const childIds = driverCarpools.get(driverId) || [];
+    if (childIds.length === 0) return;
+
+    const driver = allDrivers.find(d => d._id === driverId);
+    if (!driver) return;
+
+    try {
+      // Create route for each child in carpool
+      for (const childId of childIds) {
+        await createAssignment({
+          date: selectedDate,
+          period: activeTab,
+          childId,
+          driverId,
+          status: 'scheduled',
+        });
+      }
+
+      // Show success toast
+      showToast(`✅ Carpool created: ${driver.firstName} ${driver.lastName} → ${childIds.length} rider${childIds.length > 1 ? 's' : ''}`);
+
+      // Clear temporary carpool state for this driver
+      setDriverCarpools(prev => {
+        const next = new Map(prev);
+        next.delete(driverId);
+        return next;
+      });
+    } catch (error) {
+      console.error('Failed to create carpool:', error);
+      showToast(error.message || 'Failed to create carpool', 'error');
+    }
+  };
+
+  // Toggle carpool expansion
+  const toggleDriverExpansion = (driverId) => {
+    setExpandedDrivers(prev => {
+      const next = new Set(prev);
+      if (next.has(driverId)) {
+        next.delete(driverId);
+      } else {
+        next.add(driverId);
+      }
+      return next;
+    });
+  };
+
+  // Remove entire carpool
+  const handleRemoveCarpool = async (carpoolGroup) => {
+    try {
+      // Remove all assignments for this driver
+      for (const assignment of carpoolGroup.assignments) {
+        await removeAssignment({ id: assignment._id });
+      }
+      showToast(`✅ Removed carpool: ${carpoolGroup.driverName} (${carpoolGroup.assignments.length} riders)`);
+    } catch (error) {
+      console.error('Failed to remove carpool:', error);
+      showToast('Failed to remove carpool', 'error');
     }
   };
 
@@ -236,39 +310,69 @@ function PairingUI() {
   };
 
   const DraggableDriver = ({ driver }) => {
-    const { attributes, listeners, setNodeRef: dragRef, isDragging } = useDraggable({
-      id: `driver-${driver._id}`,
-    });
-
-    // Make driver droppable for children
-    const { setNodeRef: dropRef, isOver } = useDroppable({
+    // Drivers are drop zones only (not draggable)
+    const { setNodeRef, isOver } = useDroppable({
       id: `driver-drop-${driver._id}`,
     });
 
-    // Combine both refs
-    const combinedRef = (el) => {
-      dragRef(el);
-      dropRef(el);
-    };
+    // Get carpool children for this driver
+    const carpoolChildIds = driverCarpools.get(driver._id) || [];
+    const carpoolChildren = carpoolChildIds
+      .map(childId => allChildren.find(c => c._id === childId))
+      .filter(Boolean);
+
+    const hasCarpool = carpoolChildren.length > 0;
 
     return (
       <div
-        ref={combinedRef}
-        {...listeners}
-        {...attributes}
-        className={`bg-blue-50 border-2 p-3 rounded-lg cursor-move transition-all duration-200 touch-none select-none ${
-          isDragging
-            ? 'opacity-50 scale-95 bg-blue-100 shadow-lg border-blue-400'
-            : isOver
-            ? 'bg-blue-200 border-blue-500 shadow-xl scale-110 border-dashed border-4 ring-4 ring-blue-300 animate-pulse'
-            : 'border-blue-300 hover:bg-blue-100 hover:shadow-md hover:scale-105'
+        ref={setNodeRef}
+        className={`bg-blue-50 border-2 p-3 rounded-lg cursor-pointer transition-all duration-200 touch-none select-none flex flex-col ${
+          hasCarpool ? 'min-h-[240px]' : 'min-h-[120px]'
+        } ${
+          isOver
+            ? 'bg-blue-200 border-blue-500 shadow-xl scale-105 border-dashed border-4 ring-4 ring-blue-300 animate-pulse'
+            : 'border-blue-300 hover:bg-blue-100 hover:shadow-md'
         }`}
         style={{
           touchAction: 'none',
         }}
       >
+        {/* Driver Header */}
         <div className="font-semibold text-blue-900">🚗 {driver.firstName} {driver.lastName}</div>
-        <div className="text-xs text-blue-700 mt-1">🚕 Available</div>
+
+        {/* Carpool Children (Vertical Stack) */}
+        {hasCarpool ? (
+          <div className="mt-2 mb-2 flex-1">
+            {carpoolChildren.map((child, idx) => (
+              <div key={child._id} className="text-sm text-blue-800 pl-4 py-1">
+                👧 {child.firstName} {child.lastName}
+              </div>
+            ))}
+          </div>
+        ) : (
+          <div className="text-xs text-blue-700 mt-1">🚕 Available</div>
+        )}
+
+        {/* Bottom Row: Counter + Done Button */}
+        <div className="flex items-center justify-between mt-auto pt-2 border-t border-blue-200">
+          {/* Rider Counter */}
+          <div className="text-xs text-blue-700">
+            {hasCarpool ? `Riders: ${carpoolChildren.length}` : ''}
+          </div>
+
+          {/* Done Button (Prominent Checkmark) */}
+          {hasCarpool && (
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                handleDoneClick(driver._id);
+              }}
+              className="w-12 h-12 rounded-full bg-green-500 hover:bg-green-600 text-white text-2xl flex items-center justify-center shadow-lg transition-all duration-200 hover:scale-110"
+            >
+              ✓
+            </button>
+          )}
+        </div>
       </div>
     );
   };
@@ -420,73 +524,95 @@ function PairingUI() {
               </div>
             </div>
 
-            {/* Bottom Row: Active Routes (Full Width) */}
+            {/* Bottom Row: Active Routes (Carpool Groups) */}
             <div className="bg-white rounded-lg shadow-md p-6">
               <div className="flex items-center justify-between mb-4">
                 <h2 className="text-xl font-bold text-gray-800">
-                  Active Routes ({sortedPaired.length})
+                  Active Routes ({currentAssignments.length} total)
                 </h2>
-                <div className="flex items-center gap-3">
-                  <p className="text-xs text-gray-500">Sort by:</p>
-                  <div className="flex items-center gap-2 bg-gray-100 rounded-lg p-1">
-                    <button
-                      onClick={() => setSortBy('child')}
-                      className={`px-3 py-2 rounded transition font-semibold text-sm ${
-                        sortBy === 'child'
-                          ? 'bg-white text-indigo-700 shadow-sm border border-indigo-300'
-                          : 'text-gray-600 hover:text-gray-800'
-                      }`}
-                    >
-                      Child
-                    </button>
-                    <span className="text-gray-400 px-2">↔️</span>
-                    <button
-                      onClick={() => setSortBy('driver')}
-                      className={`px-3 py-2 rounded transition font-semibold text-sm ${
-                        sortBy === 'driver'
-                          ? 'bg-white text-indigo-700 shadow-sm border border-indigo-300'
-                          : 'text-gray-600 hover:text-gray-800'
-                      }`}
-                    >
-                      Driver
-                    </button>
-                  </div>
-                </div>
               </div>
               <p className="text-xs text-gray-500 mb-4">
-                {sortBy === 'child' ? 'Sorted A-Z by child name' : 'Sorted A-Z by driver name'}
+                Grouped by driver - Click to expand carpool details
               </p>
-              <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 max-h-[600px] overflow-y-auto">
-                {sortedPaired.length === 0 ? (
-                  <p className="text-gray-400 text-sm italic col-span-full">
+              <div className="space-y-3 max-h-[600px] overflow-y-auto">
+                {carpoolGroups.length === 0 ? (
+                  <p className="text-gray-400 text-sm italic">
                     No active routes for this period
                   </p>
                 ) : (
-                  sortedPaired.map((pairing) => (
-                    <div
-                      key={pairing._id}
-                      className="bg-gradient-to-r from-green-50 to-emerald-50 border-2 border-green-400 rounded-lg p-4 transition-all duration-300 ease-in-out"
-                    >
-                      <div className="flex items-start justify-between mb-2">
-                        <div className="font-bold text-green-900 text-sm">
-                          👧 {pairing.childName}
-                        </div>
-                        <button
-                          onClick={() => handleUnpair(pairing)}
-                          className="text-red-500 hover:text-red-700 hover:bg-red-50 p-1 rounded transition flex-shrink-0"
-                          title="Unzip pairing"
+                  carpoolGroups.map((carpoolGroup) => {
+                    const isExpanded = expandedDrivers.has(carpoolGroup.driverId);
+                    const riderCount = carpoolGroup.assignments.length;
+
+                    return (
+                      <div
+                        key={carpoolGroup.driverId}
+                        className="bg-gradient-to-r from-green-50 to-emerald-50 border-2 border-green-400 rounded-lg overflow-hidden"
+                      >
+                        {/* Driver Header (Clickable) */}
+                        <div
+                          onClick={() => toggleDriverExpansion(carpoolGroup.driverId)}
+                          className="flex items-center justify-between p-4 cursor-pointer hover:bg-green-100 transition"
                         >
-                          🗑️
-                        </button>
+                          <div className="flex items-center gap-3">
+                            <span className="text-2xl">🚗</span>
+                            <div>
+                              <div className="font-bold text-green-900">
+                                {carpoolGroup.driverName}
+                              </div>
+                              <div className="text-xs text-green-700">
+                                {riderCount} rider{riderCount > 1 ? 's' : ''}
+                              </div>
+                            </div>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            {/* Remove Entire Carpool Button */}
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleRemoveCarpool(carpoolGroup);
+                              }}
+                              className="text-red-500 hover:text-red-700 hover:bg-red-50 p-2 rounded transition"
+                              title="Remove entire carpool"
+                            >
+                              🗑️
+                            </button>
+                            {/* Expand/Collapse Chevron */}
+                            <span className="text-green-700 text-xl">
+                              {isExpanded ? '˄' : '˅'}
+                            </span>
+                          </div>
+                        </div>
+
+                        {/* Expanded Children List */}
+                        {isExpanded && (
+                          <div className="border-t-2 border-green-300 bg-green-50 p-4">
+                            {carpoolGroup.assignments.map((assignment) => (
+                              <div
+                                key={assignment._id}
+                                className="flex items-center justify-between py-2 px-3 mb-2 last:mb-0 bg-white rounded border border-green-200"
+                              >
+                                <div className="flex items-center gap-2">
+                                  <span>👧</span>
+                                  <span className="font-medium text-green-900">
+                                    {assignment.childName}
+                                  </span>
+                                </div>
+                                {/* Individual Remove Button */}
+                                <button
+                                  onClick={() => handleUnpair(assignment)}
+                                  className="text-red-500 hover:text-red-700 hover:bg-red-50 p-1 rounded transition text-sm"
+                                  title="Remove this child"
+                                >
+                                  ✕
+                                </button>
+                              </div>
+                            ))}
+                          </div>
+                        )}
                       </div>
-                      <div className="flex items-center justify-center my-2 text-green-600 font-bold text-lg">
-                        ↔️
-                      </div>
-                      <div className="font-bold text-green-900 text-sm">
-                        🚗 {pairing.driverName}
-                      </div>
-                    </div>
-                  ))
+                    );
+                  })
                 )}
               </div>
             </div>
@@ -494,7 +620,7 @@ function PairingUI() {
 
           {/* Instructions */}
           <div className="mt-8 bg-indigo-50 border border-indigo-200 rounded-lg p-4">
-            <h3 className="font-bold text-indigo-900 mb-2">How to use:</h3>
+            <h3 className="font-bold text-indigo-900 mb-2">How to use (Carpool Mode):</h3>
             <ul className="text-sm text-indigo-800 space-y-1 ml-4 list-disc">
               <li>
                 <strong>Select date:</strong> Use calendar or prev/next buttons to choose a date
@@ -503,14 +629,16 @@ function PairingUI() {
                 <strong>Switch routes:</strong> Click AM or PM tabs to view/edit each period
               </li>
               <li>
-                <strong>Create pairing:</strong> Drag a child to a driver (or drag a driver to a
-                child)
+                <strong>Build carpool:</strong> Drag children one-by-one onto a driver (max 3)
               </li>
               <li>
-                <strong>Sort routes:</strong> Click "Child" or "Driver" to sort active routes
+                <strong>Create routes:</strong> Click green ✓ button when carpool is ready
               </li>
               <li>
-                <strong>Unzip pairing:</strong> Click trash icon to remove assignment
+                <strong>View carpools:</strong> Click driver name to expand/collapse child list
+              </li>
+              <li>
+                <strong>Remove routes:</strong> Click 🗑️ to remove entire carpool or individual child
               </li>
               <li>
                 <strong>Calendar view:</strong> Numbers show assignment counts (orange=AM,

@@ -109,6 +109,9 @@ export default defineSchema({
     pickupNotes: v.optional(v.string()), // Special instructions from master sheet
     homeLanguage: v.optional(v.string()), // Primary language at home (e.g., "Spanish", "Portuguese")
 
+    // NEW: For badge-based carpool auto-pairing
+    assignedBadgeId: v.optional(v.string()), // Badge ID for carpool assignments (e.g., "BADGE023")
+
     // Addresses (driver app needs)
     homeAddress: v.optional(v.object({
       street: v.string(),

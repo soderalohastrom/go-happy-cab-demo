@@ -40,15 +40,66 @@ export const getById = query({
   },
 });
 
-// NOTE: create/update temporarily disabled for unified schema migration
-// These will be re-implemented to match the full children schema (firstName, lastName, etc.)
+/**
+ * Create a new child record in the database.
+ * Simplified mutation for Children management screen.
+ */
+export const create = mutation({
+  args: {
+    firstName: v.string(),
+    lastName: v.string(),
+    grade: v.string(),
+    schoolName: v.string(),
+    dateOfBirth: v.optional(v.string()),
+    homeLanguage: v.optional(v.string()),
+    rideType: v.optional(v.string()),
+    studentId: v.optional(v.string()),
+  },
+  handler: async (ctx, args) => {
+    // Generate studentId if not provided
+    const studentId = args.studentId || `S-${String(Date.now()).slice(-6)}`;
+
+    // Default dateOfBirth if not provided (for schema compliance)
+    const dateOfBirth = args.dateOfBirth || "2010-01-01";
+
+    await ctx.db.insert("children", {
+      firstName: args.firstName,
+      lastName: args.lastName,
+      grade: args.grade,
+      schoolName: args.schoolName,
+      dateOfBirth,
+      studentId,
+      homeLanguage: args.homeLanguage,
+      rideType: args.rideType,
+      active: true,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    });
+
+    return { success: true, studentId };
+  },
+});
 
 // Deactivate a child (soft delete)
 export const deactivate = mutation({
   args: { id: v.id("children") },
   handler: async (ctx, args) => {
-    await ctx.db.patch(args.id, { 
+    await ctx.db.patch(args.id, {
       active: false,
+      updatedAt: new Date().toISOString(),
+    });
+    return args.id;
+  },
+});
+
+/**
+ * Reactivate a child (restore from soft delete).
+ */
+export const reactivate = mutation({
+  args: { id: v.id("children") },
+  handler: async (ctx, args) => {
+    await ctx.db.patch(args.id, {
+      active: true,
       updatedAt: new Date().toISOString(),
     });
     return args.id;
