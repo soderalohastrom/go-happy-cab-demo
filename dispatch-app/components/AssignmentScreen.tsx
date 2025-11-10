@@ -8,14 +8,15 @@ import React, {
   useState, 
   useRef 
 } from 'react';
-import { 
-  StyleSheet, 
-  View, 
-  Text, 
-  ScrollView, 
-  TouchableOpacity, 
+import {
+  StyleSheet,
+  View,
+  Text,
+  ScrollView,
+  TouchableOpacity,
   ActivityIndicator,
-  Alert 
+  Alert,
+  Platform
 } from 'react-native';
 import {
   useRoutesForDatePeriod,
@@ -144,16 +145,32 @@ export default function AssignmentScreen({ date }: AssignmentScreenProps) {
   // Handle drag move - update overlay position and highlight valid drop zones
   const handleDragMove = (x: number, y: number) => {
     setDragState(prev => ({ ...prev, x, y }));
-    
+
     // Find which drop zone we're hovering over
-    // Use raw finger position for collision (card is centered on finger)
+    // PLATFORM-SPECIFIC COLLISION DETECTION
+    // Card is 180px wide x 50px tall, centered on finger in both cases
+    let adjustedX = x;
+    let adjustedY = y;
+
+    if (Platform.OS === 'web') {
+      // WEB: position:fixed aligns gesture coords with measureInWindow
+      // Check at raw finger position (card center)
+      adjustedX = x;
+      adjustedY = y;
+    } else {
+      // NATIVE: Card top edge positioned at y - wrapperOffsetY - 25
+      // measureInWindow gives window coords, so adjust for card centering
+      adjustedX = x;
+      adjustedY = y - 25; // Account for card being centered vertically
+    }
+
     let hoveredId: string | null = null;
     dropZones.forEach(({ type, layout }, id) => {
       if (
-        x >= layout.x && 
-        x <= layout.x + layout.width &&
-        y >= layout.y && 
-        y <= layout.y + layout.height
+        adjustedX >= layout.x &&
+        adjustedX <= layout.x + layout.width &&
+        adjustedY >= layout.y &&
+        adjustedY <= layout.y + layout.height
       ) {
         // Only highlight if it's opposite type (valid drop target)
         if (type !== dragState.draggedType) {
@@ -183,15 +200,29 @@ export default function AssignmentScreen({ date }: AssignmentScreenProps) {
     }
 
     // Find which drop zone the child was dropped on
+    // PLATFORM-SPECIFIC: Same logic as handleDragMove for consistency
+    let adjustedX = x;
+    let adjustedY = y;
+
+    if (Platform.OS === 'web') {
+      // WEB: No adjustment needed
+      adjustedX = x;
+      adjustedY = y;
+    } else {
+      // NATIVE: Adjust for card centering
+      adjustedX = x;
+      adjustedY = y - 25;
+    }
+
     let targetId: string | null = null;
     let targetType: 'child' | 'driver' | null = null;
 
     dropZones.forEach(({ type, layout }, id) => {
       if (
-        x >= layout.x &&
-        x <= layout.x + layout.width &&
-        y >= layout.y &&
-        y <= layout.y + layout.height
+        adjustedX >= layout.x &&
+        adjustedX <= layout.x + layout.width &&
+        adjustedY >= layout.y &&
+        adjustedY <= layout.y + layout.height
       ) {
         targetId = id;
         targetType = type;
