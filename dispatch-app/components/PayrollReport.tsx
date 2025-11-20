@@ -7,9 +7,11 @@ import {
   ScrollView,
   ActivityIndicator,
   Alert,
+  Linking,
 } from "react-native";
 import { usePayrollReport } from "../hooks/usePayrollReport";
 import { exportMarkdown, exportCSV } from "../utils/exportPayroll";
+import { useGoogleSheetsExport } from "../hooks/useGoogleSheetsExport";
 import FontAwesome from "@expo/vector-icons/FontAwesome";
 
 interface PayrollReportProps {
@@ -34,6 +36,7 @@ export const PayrollReport: React.FC<PayrollReportProps> = ({
     new Set()
   );
   const [isExporting, setIsExporting] = useState(false);
+  const { exportToNewSheet, isExporting: isExportingSheets, exportError } = useGoogleSheetsExport();
 
   const toggleDriver = (driverId: string) => {
     const newExpanded = new Set(expandedDrivers);
@@ -66,6 +69,45 @@ export const PayrollReport: React.FC<PayrollReportProps> = ({
 
     if (!result.success) {
       Alert.alert("Export Failed", result.error || "Unknown error");
+    }
+  };
+
+  const handleExportToGoogleSheets = async () => {
+    if (!report || report.drivers.length === 0) {
+      Alert.alert('No Data', 'No payroll data to export');
+      return;
+    }
+
+    // Transform report data to match hook's expected format
+    const drivers = report.drivers.map(d => ({
+      name: d.fullName,
+      employeeId: d.employeeId,
+      totalTrips: d.totalTrips,
+      pickups: d.completedTrips,
+      noGos: d.noShowTrips,
+      preCancels: d.cancelledTrips,
+      totalPay: d.totalPay,
+    }));
+
+    const config = {
+      pickupRate: report.config.baseRate,
+      noGoRate: report.drivers[0]?.payBreakdown.noShowRate || 25,
+      preCancelRate: report.drivers[0]?.payBreakdown.cancelledRate || 20,
+    };
+
+    const result = await exportToNewSheet(drivers, startDate, endDate, config);
+
+    if (result) {
+      Alert.alert(
+        'Export Successful! 🎉',
+        `${result.summary.totalDrivers} drivers\n$${result.summary.totalPay.toFixed(2)} total`,
+        [
+          { text: 'View Sheet', onPress: () => Linking.openURL(result.url) },
+          { text: 'Done', style: 'cancel' }
+        ]
+      );
+    } else if (exportError) {
+      Alert.alert('Export Failed', exportError);
     }
   };
 
@@ -128,23 +170,43 @@ export const PayrollReport: React.FC<PayrollReportProps> = ({
       {/* Export Buttons */}
       <View style={styles.exportButtons}>
         <TouchableOpacity
-          style={[styles.exportButton, isExporting && styles.exportButtonDisabled]}
-          onPress={handleExportMarkdown}
-          disabled={isExporting}
-        >
-          <FontAwesome name="file-text" size={18} color="white" />
-          <Text style={styles.exportButtonText}>Export Markdown</Text>
-        </TouchableOpacity>
-
-        <TouchableOpacity
-          style={[styles.exportButton, isExporting && styles.exportButtonDisabled]}
+          style={[styles.exportButton, styles.csvButton, isExporting && styles.exportButtonDisabled]}
           onPress={handleExportCSV}
           disabled={isExporting}
         >
-          <FontAwesome name="file-excel-o" size={18} color="white" />
-          <Text style={styles.exportButtonText}>Export CSV</Text>
+          <FontAwesome name="file-excel-o" size={16} color="white" />
+          <Text style={styles.exportButtonText}>CSV</Text>
+        </TouchableOpacity>
+
+        <TouchableOpacity
+          style={[
+            styles.exportButton,
+            styles.sheetsButton,
+            (isExportingSheets || !report?.drivers.length) && styles.exportButtonDisabled
+          ]}
+          onPress={handleExportToGoogleSheets}
+          disabled={isExportingSheets || !report?.drivers.length}
+        >
+          {isExportingSheets ? (
+            <ActivityIndicator color="#FFF" size="small" />
+          ) : (
+            <>
+              <FontAwesome name="google" size={16} color="white" />
+              <View>
+                <Text style={styles.exportButtonText}>Google Sheets</Text>
+                <Text style={styles.exportButtonSubtext}>Formatted</Text>
+              </View>
+            </>
+          )}
         </TouchableOpacity>
       </View>
+
+      {/* Error Display */}
+      {exportError && (
+        <View style={styles.errorContainer}>
+          <Text style={styles.errorText}>⚠️ {exportError}</Text>
+        </View>
+      )}
 
       {/* Driver List */}
       <ScrollView style={styles.driverList}>
@@ -318,20 +380,43 @@ const styles = StyleSheet.create({
   exportButton: {
     flex: 1,
     flexDirection: "row",
-    backgroundColor: "#007AFF",
-    padding: 12,
+    padding: 14,
     borderRadius: 8,
     alignItems: "center",
     justifyContent: "center",
     gap: 8,
   },
+  csvButton: {
+    backgroundColor: "#6B7280",
+  },
+  sheetsButton: {
+    backgroundColor: "#0F9D58", // Google green
+  },
   exportButtonDisabled: {
     backgroundColor: "#ccc",
+    opacity: 0.6,
   },
   exportButtonText: {
     color: "white",
     fontSize: 14,
     fontWeight: "600",
+  },
+  exportButtonSubtext: {
+    color: "white",
+    fontSize: 11,
+    marginTop: 2,
+    opacity: 0.9,
+  },
+  errorContainer: {
+    backgroundColor: "#FEE2E2",
+    padding: 12,
+    borderRadius: 8,
+    marginHorizontal: 16,
+    marginBottom: 12,
+  },
+  errorText: {
+    color: "#991B1B",
+    fontSize: 13,
   },
   driverList: {
     flex: 1,
