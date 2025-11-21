@@ -12,6 +12,13 @@ Go Happy Cab Demo - A real-time scheduling system for child transportation manag
 
 Both apps connect to the same Convex deployment: `colorful-wildcat-524.convex.cloud`
 
+**Phase 9: Schools Management (Nov 21, 2025 - IN PROGRESS)**
+- 5 new Convex tables: districts, schools, schoolContacts, schoolSchedules, nonSchoolDays
+- Schools tab in Dispatch App with Districts/Schools segmented control
+- Add District and Add School functionality with validation
+- Python import script for Google Sheets data ingestion
+- Foundation for school-based child assignment and rate lookup
+
 ## Development Commands
 
 ### POC App (Vite)
@@ -55,6 +62,9 @@ npx convex run importRealData:importChildren --csv "paste_csv_here" # Import ~12
 npx convex run importRealData:importDrivers --csv "paste_csv_here"  # Import ~67 drivers
 npx convex run importRealData:createInitialRoutes --date "2025-10-28" # Auto-pair routes
 npx convex run importRealData:getImportStats                        # Verify import success
+
+# Schools Data Import (from Google Sheets via Python script)
+python3 import_school_data.py                                        # Import districts, schools, contacts, schedules, non-school days
 ```
 
 ### Important: Updating Dispatch App After Schema Changes
@@ -133,9 +143,22 @@ The Dispatch App is designed for early-morning route assignment:
 - Historical data preserved for all dates
 - Calendar view shows assignment counts per period for both active and inactive tabs.
 
+### Schools Data Model
+- **Purpose**: Track school districts, schedules, and non-school days for accurate pickup times and rate lookup
+- **Tables**: 5 tables in hierarchical structure
+  - `districts` - District names, client info, billing rates
+  - `schools` - School details linked to districts via `districtId`
+  - `schoolContacts` - Primary/Secondary/Afterschool contacts per school
+  - `schoolSchedules` - AM start, PM release, minimum days, early release times
+  - `nonSchoolDays` - Individual date records for holidays and closures
+- **Rate Lookup Flow**: Children → Schools → Districts → Billing Rates
+- **Import Workflow**: Google Sheets → Python script (`import_school_data.py`) → Convex import mutations
+- **UI**: 4th tab in Dispatch App for managing districts and schools with segmented control
+
 ### Convex Function Organization
 - `children.ts` / `drivers.ts`: Entity CRUD operations
 - `assignments.ts`: Complex assignment logic with conflict checking
+- `schools.ts`: District and school CRUD operations, import mutations for CSV data
 - `seed.ts`: Initial data population
 - All mutations include audit log entries
 
