@@ -29,3 +29,6 @@ convex/*.js.map
 *.sln
 *.sw?
 .playwright-mcp/
+service_account.json
+stdout.txt
+stderr.txt

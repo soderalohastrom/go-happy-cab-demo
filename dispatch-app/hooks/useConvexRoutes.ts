@@ -195,6 +195,83 @@ export function useReactivateChild() {
   return useMutation(api.children.reactivate);
 }
 
+// =============================================================================
+// Schools & Districts Management
+// =============================================================================
+
+/**
+ * Get all districts with rates
+ * Returns districts sorted alphabetically
+ */
+export function useAllDistricts() {
+  return useQuery(api.schools.getDistricts);
+}
+
+/**
+ * Get all schools with district information
+ * Returns schools sorted alphabetically with enriched district data
+ */
+export function useAllSchools() {
+  return useQuery(api.schools.getSchools);
+}
+
+/**
+ * Get schools filtered by district
+ * @param districtId - The district ID to filter by
+ */
+export function useSchoolsByDistrict(districtId: string | undefined) {
+  return useQuery(
+    api.schools.getSchoolsByDistrict,
+    districtId ? { districtId: districtId as any } : "skip"
+  );
+}
+
+/**
+ * Get complete school details including contacts, schedule, and non-school days
+ * @param schoolId - The school ID to fetch details for
+ */
+export function useSchoolDetails(schoolId: string | undefined) {
+  return useQuery(
+    api.schools.getSchoolDetails,
+    schoolId ? { schoolId: schoolId as any } : "skip"
+  );
+}
+
+/**
+ * Add a new district
+ */
+export function useAddDistrict() {
+  return useMutation(api.schools.importDistricts);
+}
+
+/**
+ * Add a new school
+ */
+export function useAddSchool() {
+  return useMutation(api.schools.importSchools);
+}
+
+/**
+ * Add school contacts
+ */
+export function useAddSchoolContacts() {
+  return useMutation(api.schools.importSchoolContacts);
+}
+
+/**
+ * Add school schedule
+ */
+export function useAddSchoolSchedule() {
+  return useMutation(api.schools.importSchoolSchedules);
+}
+
+/**
+ * Add non-school days
+ */
+export function useAddNonSchoolDays() {
+  return useMutation(api.schools.importNonSchoolDays);
+}
+
 /**
  * =====================================================================
  * Mutations

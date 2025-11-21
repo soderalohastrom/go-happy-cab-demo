@@ -208,3 +208,106 @@ export const importNonSchoolDays = mutation({
         }
     },
 });
+
+// ============================================================================
+// QUERY FUNCTIONS
+// Used by the Dispatch App UI to display schools data
+// ============================================================================
+
+import { query } from "./_generated/server";
+
+/**
+ * Get all districts with their rates
+ * Used for: District selection dropdown, District list view
+ */
+export const getDistricts = query({
+    args: {},
+    handler: async (ctx) => {
+        const districts = await ctx.db.query("districts").collect();
+        return districts.sort((a, b) => a.districtName.localeCompare(b.districtName));
+    },
+});
+
+/**
+ * Get all schools with their district information
+ * Used for: Schools list view, School selection dropdown
+ */
+export const getSchools = query({
+    args: {},
+    handler: async (ctx) => {
+        const schools = await ctx.db.query("schools").collect();
+
+        // Enrich with district names
+        const schoolsWithDistricts = await Promise.all(
+            schools.map(async (school) => {
+                const district = await ctx.db.get(school.districtId);
+                return {
+                    ...school,
+                    districtName: district?.districtName || "Unknown District",
+                };
+            })
+        );
+
+        return schoolsWithDistricts.sort((a, b) => a.schoolName.localeCompare(b.schoolName));
+    },
+});
+
+/**
+ * Get schools filtered by district
+ * Used for: District-specific school lists
+ */
+export const getSchoolsByDistrict = query({
+    args: { districtId: v.id("districts") },
+    handler: async (ctx, args) => {
+        const schools = await ctx.db
+            .query("schools")
+            .filter((q) => q.eq(q.field("districtId"), args.districtId))
+            .collect();
+
+        return schools.sort((a, b) => a.schoolName.localeCompare(b.schoolName));
+    },
+});
+
+/**
+ * Get complete school details including contacts, schedule, and non-school days
+ * Used for: School details modal/screen
+ */
+export const getSchoolDetails = query({
+    args: { schoolId: v.id("schools") },
+    handler: async (ctx, args) => {
+        const school = await ctx.db.get(args.schoolId);
+        if (!school) {
+            throw new Error(`School not found: ${args.schoolId}`);
+        }
+
+        const district = await ctx.db.get(school.districtId);
+
+        const contacts = await ctx.db
+            .query("schoolContacts")
+            .withIndex("by_school", (q) => q.eq("schoolId", args.schoolId))
+            .collect();
+
+        const schedule = await ctx.db
+            .query("schoolSchedules")
+            .withIndex("by_school", (q) => q.eq("schoolId", args.schoolId))
+            .first();
+
+        const nonSchoolDays = await ctx.db
+            .query("nonSchoolDays")
+            .withIndex("by_school", (q) => q.eq("schoolId", args.schoolId))
+            .collect();
+
+        return {
+            ...school,
+            districtName: district?.districtName || "Unknown District",
+            districtRate: district?.rate || 0,
+            contacts: contacts.sort((a, b) => {
+                // Sort by contact type: Primary, Secondary, Afterschool
+                const order = { Primary: 1, Secondary: 2, Afterschool: 3 };
+                return (order[a.contactType as keyof typeof order] || 99) - (order[b.contactType as keyof typeof order] || 99);
+            }),
+            schedule,
+            nonSchoolDays: nonSchoolDays.sort((a, b) => a.date.localeCompare(b.date)),
+        };
+    },
+});
