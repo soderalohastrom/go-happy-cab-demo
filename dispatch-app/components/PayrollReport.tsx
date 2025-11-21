@@ -11,7 +11,7 @@ import {
 } from "react-native";
 import { usePayrollReport } from "../hooks/usePayrollReport";
 import { exportMarkdown, exportCSV } from "../utils/exportPayroll";
-import { useGoogleSheetsExport } from "../hooks/useGoogleSheetsExport";
+import { useGoogleSheetsExport } from '../hooks/useGoogleSheetsExport';
 import FontAwesome from "@expo/vector-icons/FontAwesome";
 
 interface PayrollReportProps {
@@ -78,36 +78,46 @@ export const PayrollReport: React.FC<PayrollReportProps> = ({
       return;
     }
 
-    // Transform report data to match hook's expected format
-    const drivers = report.drivers.map(d => ({
-      name: d.fullName,
-      employeeId: d.employeeId,
-      totalTrips: d.totalTrips,
-      pickups: d.completedTrips,
-      noGos: d.noShowTrips,
-      preCancels: d.cancelledTrips,
-      totalPay: d.totalPay,
-    }));
+    try {
+      // Transform report data for Convex action
+      const driverPayroll = report.drivers.map(d => ({
+        driverName: d.fullName,
+        employeeId: d.employeeId,
+        totalTrips: d.totalTrips,
+        pickups: d.completedTrips,
+        noGos: d.noShowTrips,
+        preCancels: d.cancelledTrips,
+        totalPay: d.totalPay,
+      }));
 
-    const config = {
-      pickupRate: report.config.baseRate,
-      noGoRate: report.drivers[0]?.payBreakdown.noShowRate || 25,
-      preCancelRate: report.drivers[0]?.payBreakdown.cancelledRate || 20,
-    };
+      const config = {
+        pickupRate: report.config.baseRate,
+        noGoRate: report.drivers[0]?.payBreakdown.noShowRate || 25,
+        preCancelRate: report.drivers[0]?.payBreakdown.cancelledRate || 20,
+      };
 
-    const result = await exportToNewSheet(drivers, startDate, endDate, config);
-
-    if (result) {
-      Alert.alert(
-        'Export Successful! 🎉',
-        `${result.summary.totalDrivers} drivers\n$${result.summary.totalPay.toFixed(2)} total`,
-        [
-          { text: 'View Sheet', onPress: () => Linking.openURL(result.url) },
-          { text: 'Done', style: 'cancel' }
-        ]
+      // Call Convex action directly (service account auth on backend)
+      const result = await exportToNewSheet(
+        driverPayroll,
+        startDate,
+        endDate,
+        config
       );
-    } else if (exportError) {
-      Alert.alert('Export Failed', exportError);
+
+      if (result) {
+        Alert.alert(
+          'Export Successful! 🎉',
+          `${result.totalDrivers} drivers\n$${result.totalPay.toFixed(2)} total`,
+          [
+            { text: 'View Sheet', onPress: () => Linking.openURL(result.spreadsheetUrl) },
+            { text: 'Done', style: 'cancel' }
+          ]
+        );
+      }
+    } catch (error: any) {
+      console.error('Google Sheets export error:', error);
+      const errorMessage = error.message || 'Unknown error occurred';
+      Alert.alert('Export Failed', errorMessage);
     }
   };
 

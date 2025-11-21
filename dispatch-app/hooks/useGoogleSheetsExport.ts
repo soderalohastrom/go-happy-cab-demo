@@ -1,11 +1,10 @@
 import { useState } from 'react';
-import { useAuth } from '@clerk/clerk-expo';
-import { useMutation } from 'convex/react';
+import { useAction } from 'convex/react';
 import { api } from '../convex/_generated/api';
 import * as Linking from 'expo-linking';
 
 interface PayrollDriver {
-  name: string;
+  driverName: string;
   employeeId: string;
   totalTrips: number;
   pickups: number;
@@ -32,10 +31,8 @@ interface ExportResult {
 /**
  * Hook for exporting payroll data to Google Sheets
  *
- * Requires:
- * - User authenticated with Clerk
- * - Google OAuth scopes configured in Clerk dashboard
- * - User has signed out/in to grant new permissions
+ * Uses service account authentication (backend-only).
+ * No user OAuth required - works in walled garden distribution.
  *
  * Usage:
  * ```tsx
@@ -52,9 +49,8 @@ interface ExportResult {
 export const useGoogleSheetsExport = () => {
   const [isExporting, setIsExporting] = useState(false);
   const [exportError, setExportError] = useState<string | null>(null);
-  const { getToken } = useAuth();
 
-  const exportToSheetsAction = useMutation(api.googleSheets.exportPayrollToSheets);
+  const exportToSheetsAction = useAction(api.googleSheets.exportPayrollToSheets);
 
   const exportToNewSheet = async (
     drivers: PayrollDriver[],
@@ -66,31 +62,13 @@ export const useGoogleSheetsExport = () => {
     setExportError(null);
 
     try {
-      // Get OAuth token from Clerk
-      const token = await getToken({ template: 'oauth_google' });
-
-      if (!token) {
-        throw new Error('No Google OAuth token available. Please sign out and sign back in to grant Google Sheets permissions.');
-      }
-
-      // Format data for Convex action
-      const payrollData = drivers.map(d => ({
-        driverName: d.name,
-        employeeId: d.employeeId,
-        totalTrips: d.totalTrips,
-        pickups: d.pickups,
-        noGos: d.noGos,
-        preCancels: d.preCancels,
-        totalPay: d.totalPay,
-      }));
-
       // Call Convex action to create spreadsheet
+      // Data is already formatted by PayrollReport component
       const result = await exportToSheetsAction({
-        payrollData,
+        payrollData: drivers,
         startDate,
         endDate,
         payrollConfig: config,
-        oauthToken: token,
       });
 
       if (result.success) {

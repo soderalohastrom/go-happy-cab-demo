@@ -1,12 +1,32 @@
 # 🚀 Google Sheets Export - Complete Implementation Guide
 
-**For:** Cursor IDE Development  
-**Project:** Go Happy Cab Payroll System  
+**For:** Cursor IDE Development
+**Project:** Go Happy Cab Payroll System
 **Date:** November 14, 2025
 
 ---
 
-## ⚡ Quick Start
+## ⚠️ DEPRECATION NOTICE
+
+**This guide is OUTDATED and uses Clerk OAuth approach.**
+
+The actual implementation uses **Google Service Account authentication** instead, which is better suited for walled garden distribution (ABM/Managed Google Play) where users don't authenticate individually.
+
+**For the actual working implementation, see:**
+- [GOOGLE_API_ISSUES.md](GOOGLE_API_ISSUES.md) - Complete troubleshooting log with final Shared Drive solution
+- [convex/googleSheets.ts](convex/googleSheets.ts) - Working service account implementation
+- [dispatch-app/hooks/useGoogleSheetsExport.ts](dispatch-app/hooks/useGoogleSheetsExport.ts) - Frontend hook (no Clerk)
+
+**Key differences from this guide:**
+- ❌ No Clerk OAuth scopes required
+- ✅ Service account with JWT authentication
+- ✅ Google Shared Drive for unlimited storage (service accounts have 0 bytes quota)
+- ✅ `supportsAllDrives: true` required for Shared Drive API calls
+- ✅ No user sign-in required (perfect for walled garden apps)
+
+---
+
+## ⚡ Quick Start (DEPRECATED - See above for actual implementation)
 
 This guide provides EVERYTHING needed to implement Google Sheets export for payroll reports.
 

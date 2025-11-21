@@ -222,6 +222,7 @@ The Dispatch App is designed for early-morning route assignment:
 3. **IDs are typed** - Use `v.id("tableName")` in schemas
 4. **Indexes required for filters** - Add indexes for query performance
 5. **Environment variables** - Use `VITE_` prefix for client-side access
+6. **Google Shared Drive API** - When using Google Drive API with Shared Drives (Team Drives), you MUST include `supportsAllDrives: true` parameter in all Drive API calls. Service accounts have 0 bytes storage quota and cannot create files in their own Drive - use Shared Drives instead for organization-owned storage with unlimited capacity.
 
 ## Production Data Import Process
 
