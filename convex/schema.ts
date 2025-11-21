@@ -50,18 +50,18 @@ export default defineSchema({
       v.literal("dispatcher"),
       v.literal("admin")
     ),
-    
+
     // Credentials
     licenseNumber: v.optional(v.string()),
     licenseExpiry: v.optional(v.string()),
-    
+
     // Emergency Contact
     emergencyContact: v.optional(v.object({
       name: v.string(),
       phone: v.string(),
       relationship: v.string(),
     })),
-    
+
     // Performance Metrics (driver app)
     performanceMetrics: v.optional(v.object({
       totalRoutes: v.number(),
@@ -70,7 +70,7 @@ export default defineSchema({
       incidentCount: v.number(),
       parentRating: v.number(),
     })),
-    
+
     // Metadata
     active: v.boolean(), // Simplified active flag for dispatch
     clerkId: v.optional(v.string()), // ID from Clerk user object
@@ -124,7 +124,7 @@ export default defineSchema({
       })),
       accessInstructions: v.optional(v.string()),
     })),
-    
+
     schoolAddress: v.optional(v.object({
       street: v.string(),
       city: v.string(),
@@ -137,7 +137,7 @@ export default defineSchema({
       dropoffLocation: v.optional(v.string()),
       pickupLocation: v.optional(v.string()),
     })),
-    
+
     // Special Needs (driver app critical)
     specialNeeds: v.optional(v.array(v.string())),
     medicalInfo: v.optional(v.object({
@@ -146,19 +146,19 @@ export default defineSchema({
       emergencyProcedures: v.optional(v.string()),
       equipmentNeeds: v.array(v.string()),
     })),
-    
+
     // Transportation Notes
     pickupInstructions: v.optional(v.string()),
     dropoffInstructions: v.optional(v.string()),
     transportationNotes: v.optional(v.string()),
-    
+
     // Parent References
     parentIds: v.optional(v.array(v.string())),
-    
+
     // Status
     active: v.boolean(),
     photoPermission: v.optional(v.boolean()),
-    
+
     // Metadata
     createdAt: v.string(),
     updatedAt: v.string(),
@@ -178,7 +178,7 @@ export default defineSchema({
     email: v.string(),
     phone: v.string(),
     alternatePhone: v.optional(v.string()),
-    
+
     // Address
     address: v.optional(v.object({
       street: v.string(),
@@ -186,12 +186,12 @@ export default defineSchema({
       state: v.string(),
       zip: v.string(),
     })),
-    
+
     // Relationship
     relationship: v.string(), // mother, father, guardian, etc.
     isPrimary: v.boolean(),
     canPickup: v.boolean(),
-    
+
     // Communication Preferences
     preferredContactMethod: v.union(
       v.literal("phone"),
@@ -205,7 +205,7 @@ export default defineSchema({
       pickupNotifications: v.boolean(),
       delayAlerts: v.boolean(),
     })),
-    
+
     // Status
     active: v.boolean(),
     createdAt: v.string(),
@@ -246,12 +246,12 @@ export default defineSchema({
     date: v.string(), // ISO date "2025-10-24"
     period: v.union(v.literal("AM"), v.literal("PM")), // DISPATCH ADDITION
     type: v.union(v.literal("pickup"), v.literal("dropoff")), // Usually matches period
-    
+
     // Assignment
     driverId: v.id("drivers"),
     childId: v.id("children"), // DISPATCH SIMPLIFICATION: One route per child
     vehicleId: v.optional(v.string()),
-    
+
     // Status
     status: v.union(
       v.literal("draft"),
@@ -262,28 +262,28 @@ export default defineSchema({
       v.literal("cancelled"),
       v.literal("emergency_stop")
     ),
-    
+
     // Priority
     priority: v.optional(v.union(
       v.literal("normal"),
       v.literal("high"),
       v.literal("emergency")
     )),
-    
+
     // Timing
     scheduledTime: v.optional(v.string()), // Expected pickup/dropoff time
     actualStartTime: v.optional(v.string()),
     actualEndTime: v.optional(v.string()),
     estimatedDuration: v.optional(v.number()), // minutes
     actualDuration: v.optional(v.number()),
-    
+
     // Tracking (DRIVER APP USES THIS)
     childPresent: v.optional(v.boolean()), // Did child show up?
     childCondition: v.optional(v.string()), // "good", "sick", "upset", "absent"
     parentNotified: v.optional(v.boolean()),
     skipReason: v.optional(v.string()), // If child was a no-show
     driverNotes: v.optional(v.string()),
-    
+
     // Metadata
     createdAt: v.string(),
     createdBy: v.optional(v.string()), // dispatcher or system
@@ -306,7 +306,7 @@ export default defineSchema({
     childId: v.id("children"),
     sequence: v.number(), // Order of stops
     type: v.union(v.literal("pickup"), v.literal("dropoff")),
-    
+
     // Location
     location: v.object({
       address: v.string(),
@@ -316,12 +316,12 @@ export default defineSchema({
       })),
       accessNotes: v.optional(v.string()),
     }),
-    
+
     // Timing
     scheduledTime: v.string(),
     actualTime: v.optional(v.string()),
     estimatedDelay: v.optional(v.number()), // minutes
-    
+
     // Status (DRIVER APP UPDATES THIS)
     status: v.union(
       v.literal("pending"),
@@ -332,18 +332,18 @@ export default defineSchema({
       v.literal("delayed"),
       v.literal("cancelled")
     ),
-    
+
     // Child Status
     childPresent: v.optional(v.boolean()),
     childCondition: v.optional(v.string()),
     parentNotified: v.optional(v.boolean()),
     waitTimeMinutes: v.optional(v.number()),
     skipReason: v.optional(v.string()),
-    
+
     // Notes
     notes: v.optional(v.string()),
     driverNotes: v.optional(v.string()),
-    
+
     // Metadata
     createdAt: v.string(),
     updatedAt: v.string(),
@@ -364,7 +364,7 @@ export default defineSchema({
   auditLogs: defineTable({
     logId: v.string(), // AL-YYYYMMDD-NNNNNN
     timestamp: v.string(),
-    
+
     // Actor
     userId: v.optional(v.string()),
     userType: v.union(
@@ -374,7 +374,7 @@ export default defineSchema({
       v.literal("dispatcher"), // DISPATCH ADDITION
       v.literal("system")
     ),
-    
+
     // Action
     action: v.string(), // "created", "updated", "deleted", "pickup_completed", etc.
     resource: v.string(), // "route", "stop", "assignment", etc.
@@ -385,7 +385,7 @@ export default defineSchema({
       v.literal("UPDATE"),
       v.literal("DELETE")
     ),
-    
+
     // Context
     category: v.union(
       v.literal("authentication"),
@@ -401,14 +401,14 @@ export default defineSchema({
       v.literal("error"),
       v.literal("critical")
     ),
-    
+
     // Details
     details: v.object({
       description: v.string(),
       changedFields: v.optional(v.array(v.string())),
       oldValues: v.optional(v.string()), // JSON stringified
       newValues: v.optional(v.string()), // JSON stringified
-      
+
       // DISPATCH POC FIELDS (for compatibility)
       date: v.optional(v.string()),
       period: v.optional(v.string()),
@@ -417,14 +417,14 @@ export default defineSchema({
       count: v.optional(v.string()),
       fromDate: v.optional(v.string()),
     }),
-    
+
     // Source
     sourceInfo: v.optional(v.object({
       ipAddress: v.optional(v.string()),
       deviceId: v.optional(v.string()),
       appVersion: v.optional(v.string()),
     })),
-    
+
     // Compliance
     complianceFlags: v.optional(v.object({
       requiresRetention: v.boolean(),
@@ -455,7 +455,7 @@ export default defineSchema({
       v.literal("parent"),
       v.literal("supervisor")
     ),
-    
+
     // Notification Type
     type: v.union(
       v.literal("schedule_change"),
@@ -467,12 +467,12 @@ export default defineSchema({
       v.literal("child_emergency"),
       v.literal("route_delayed")
     ),
-    
+
     // Content
     title: v.string(),
     body: v.string(),
     data: v.optional(v.any()), // Additional context
-    
+
     // Priority
     priority: v.union(
       v.literal("critical"),
@@ -480,7 +480,7 @@ export default defineSchema({
       v.literal("normal"),
       v.literal("low")
     ),
-    
+
     // Delivery
     channels: v.array(v.union(
       v.literal("push"),
@@ -493,12 +493,12 @@ export default defineSchema({
       sms: v.optional(v.union(v.literal("sent"), v.literal("delivered"), v.literal("failed"))),
       in_app: v.optional(v.union(v.literal("sent"), v.literal("read"))),
     })),
-    
+
     // Interaction
     deepLink: v.optional(v.string()),
     readAt: v.optional(v.string()),
     dismissedAt: v.optional(v.string()),
-    
+
     // Metadata
     sentAt: v.string(),
     expiresAt: v.optional(v.string()),
@@ -529,7 +529,7 @@ export default defineSchema({
       v.literal("parent"),
       v.literal("supervisor")
     ),
-    
+
     // Content
     subject: v.optional(v.string()),
     content: v.string(),
@@ -540,7 +540,7 @@ export default defineSchema({
       v.literal("route_update"),
       v.literal("parent_communication")
     ),
-    
+
     // Priority
     priority: v.union(
       v.literal("critical"),
@@ -549,13 +549,13 @@ export default defineSchema({
       v.literal("low")
     ),
     isEmergency: v.boolean(),
-    
+
     // Context
     context: v.optional(v.object({
       routeId: v.optional(v.id("routes")),
       childId: v.optional(v.id("children")),
     })),
-    
+
     // Delivery
     deliveryStatus: v.union(
       v.literal("pending"),
@@ -566,7 +566,7 @@ export default defineSchema({
     ),
     deliveredAt: v.optional(v.string()),
     readAt: v.optional(v.string()),
-    
+
     // Metadata
     createdAt: v.string(),
     updatedAt: v.string(),
@@ -596,21 +596,21 @@ export default defineSchema({
       v.literal("route_completed"),
       v.literal("emergency_triggered")
     ),
-    
+
     // References
     routeId: v.optional(v.id("routes")),
     stopId: v.optional(v.id("stops")),
     childId: v.optional(v.id("children")),
     driverId: v.optional(v.id("drivers")),
-    
+
     // Event Data
     eventData: v.any(), // Flexible JSON data
-    
+
     // SMS Hook Trigger (for future SMS Comms integration)
     triggerSms: v.boolean(),
     smsTriggered: v.optional(v.boolean()),
     smsTriggeredAt: v.optional(v.string()),
-    
+
     // Metadata
     triggeredBy: v.string(), // userId or "system"
     timestamp: v.string(),
@@ -628,11 +628,11 @@ export default defineSchema({
   scheduleTemplates: defineTable({
     name: v.string(),
     description: v.optional(v.string()),
-    
+
     // Template applies to
     dayOfWeek: v.optional(v.number()), // 0=Sunday, 1=Monday, etc.
     period: v.union(v.literal("AM"), v.literal("PM")),
-    
+
     // Template data (route assignments)
     assignments: v.array(v.object({
       childId: v.id("children"),
@@ -640,11 +640,11 @@ export default defineSchema({
       scheduledTime: v.optional(v.string()),
       notes: v.optional(v.string()),
     })),
-    
+
     // Usage tracking
     lastUsed: v.optional(v.string()),
     useCount: v.number(),
-    
+
     // Status
     isActive: v.boolean(),
     createdBy: v.string(),
@@ -684,6 +684,77 @@ export default defineSchema({
     createdAt: v.string(),
   })
     .index("by_date", ["date"]),
+
+  // ============================================================================
+  // SCHOOLS & DISTRICTS - New for Schools Feature
+  // ============================================================================
+
+  /**
+   * Districts - School districts and their rates
+   */
+  districts: defineTable({
+    districtName: v.string(),
+    clientName: v.string(),
+    rate: v.number(),
+  })
+    .index("by_district_name", ["districtName"]),
+
+  /**
+   * Schools - Static school information
+   */
+  schools: defineTable({
+    districtId: v.id("districts"),
+    schoolName: v.string(),
+    streetAddress: v.string(),
+    city: v.string(),
+    state: v.string(),
+    zip: v.string(),
+    officePhone: v.string(),
+    firstDay: v.string(),
+    lastDay: v.string(),
+  })
+    .index("by_school_name", ["schoolName"])
+    .index("by_district", ["districtId"]),
+
+  /**
+   * School Contacts - Staff contact info
+   */
+  schoolContacts: defineTable({
+    schoolId: v.id("schools"),
+    contactType: v.string(), // "Primary", "Secondary", "Afterschool"
+    firstName: v.string(),
+    lastName: v.string(),
+    title: v.string(),
+    phone: v.string(),
+    email: v.string(),
+  })
+    .index("by_school", ["schoolId"]),
+
+  /**
+   * School Schedules - Daily timings
+   */
+  schoolSchedules: defineTable({
+    schoolId: v.id("schools"),
+    amStartTime: v.string(),
+    pmReleaseTime: v.string(),
+    minDayDismissalTime: v.optional(v.string()),
+    minimumDays: v.optional(v.string()), // e.g., "Varies", "Friday"
+    earlyRelease: v.optional(v.string()),
+    pmAftercare: v.optional(v.string()),
+  })
+    .index("by_school", ["schoolId"]),
+
+  /**
+   * Non-School Days - Holidays and closures
+   */
+  nonSchoolDays: defineTable({
+    schoolId: v.id("schools"),
+    date: v.string(), // YYYY-MM-DD
+    description: v.optional(v.string()),
+  })
+    .index("by_school", ["schoolId"])
+    .index("by_date", ["date"])
+    .index("by_school_date", ["schoolId", "date"]),
 
   /**
    * Payroll Configuration - Pay rates and deductions

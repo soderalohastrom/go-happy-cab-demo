@@ -6,14 +6,10 @@ import * as SplashScreen from 'expo-splash-screen';
 import { useEffect } from 'react';
 import 'react-native-reanimated';
 import { ConvexProvider } from 'convex/react';
-import { ClerkProvider } from '@clerk/clerk-expo';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
-import Constants from 'expo-constants';
 
 import { useColorScheme } from '@/components/useColorScheme';
 import { convex } from '@/lib/convex';
-
-const clerkPublishableKey = Constants.expoConfig?.extra?.clerkPublishableKey || process.env.EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY;
 
 export {
   // Catch any errors thrown by the Layout component.
@@ -56,17 +52,15 @@ function RootLayoutNav() {
   const colorScheme = useColorScheme();
 
   return (
-    <ClerkProvider publishableKey={clerkPublishableKey!}>
-      <GestureHandlerRootView style={{ flex: 1 }}>
-        <ConvexProvider client={convex}>
-          <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
-            <Stack>
-              <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
-              <Stack.Screen name="modal" options={{ presentation: 'modal' }} />
-            </Stack>
-          </ThemeProvider>
-        </ConvexProvider>
-      </GestureHandlerRootView>
-    </ClerkProvider>
+    <GestureHandlerRootView style={{ flex: 1 }}>
+      <ConvexProvider client={convex}>
+        <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
+          <Stack>
+            <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+            <Stack.Screen name="modal" options={{ presentation: 'modal' }} />
+          </Stack>
+        </ThemeProvider>
+      </ConvexProvider>
+    </GestureHandlerRootView>
   );
 }
