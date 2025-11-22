@@ -131,6 +131,37 @@ export const reactivate = internalMutation({
   },
 });
 
+/**
+ * Updates an existing driver record.
+ * All fields except id are optional - only provided fields will be updated.
+ */
+export const update = internalMutation({
+  args: {
+    id: v.id("drivers"),
+    firstName: v.optional(v.string()),
+    lastName: v.optional(v.string()),
+    email: v.optional(v.string()),
+    phone: v.optional(v.string()),
+    employeeId: v.optional(v.string()),
+  },
+  handler: async (ctx, args) => {
+    const { id, ...updates } = args;
+
+    // Filter out undefined values
+    const filteredUpdates = Object.fromEntries(
+      Object.entries(updates).filter(([_, value]) => value !== undefined)
+    );
+
+    // Always update the timestamp
+    await ctx.db.patch(id, {
+      ...filteredUpdates,
+      updatedAt: new Date().toISOString(),
+    });
+
+    return id;
+  },
+});
+
 // Get a single driver by ID
 export const get = query({
   args: { id: v.id("drivers") },

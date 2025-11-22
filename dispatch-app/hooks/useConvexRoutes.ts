@@ -175,6 +175,10 @@ export function useReactivateDriver() {
   return useMutation(api.drivers.reactivate);
 }
 
+export function useUpdateDriver() {
+  return useMutation(api.drivers.update);
+}
+
 // =============================================================================
 // Children Management
 // =============================================================================
@@ -193,6 +197,10 @@ export function useDeactivateChild() {
 
 export function useReactivateChild() {
   return useMutation(api.children.reactivate);
+}
+
+export function useUpdateChild() {
+  return useMutation(api.children.update);
 }
 
 // =============================================================================
@@ -270,6 +278,20 @@ export function useAddSchoolSchedule() {
  */
 export function useAddNonSchoolDays() {
   return useMutation(api.schools.importNonSchoolDays);
+}
+
+/**
+ * Update an existing district
+ */
+export function useUpdateDistrict() {
+  return useMutation(api.schools.updateDistrict);
+}
+
+/**
+ * Update an existing school
+ */
+export function useUpdateSchool() {
+  return useMutation(api.schools.updateSchool);
 }
 
 /**

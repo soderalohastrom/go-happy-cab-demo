@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { StyleSheet, Text, View, FlatList, TouchableOpacity, ActivityIndicator, Modal, TextInput, Alert, KeyboardAvoidingView, Platform, ScrollView } from 'react-native';
-import { useAllChildren, useAddChild, useDeactivateChild, useReactivateChild } from '../../hooks/useConvexRoutes';
+import { useAllChildren, useAddChild, useDeactivateChild, useReactivateChild, useUpdateChild } from '../../hooks/useConvexRoutes';
 import { Id } from '../../convex/_generated/dataModel';
 
 // Define a type for the child object for clarity
@@ -22,8 +22,11 @@ export default function ChildrenScreen() {
   const addChild = useAddChild();
   const deactivateChild = useDeactivateChild();
   const reactivateChild = useReactivateChild();
+  const updateChild = useUpdateChild();
 
   const [modalVisible, setModalVisible] = useState(false);
+  const [modalMode, setModalMode] = useState<'add' | 'edit'>('add');
+  const [editingChild, setEditingChild] = useState<Child | null>(null);
   const [newChild, setNewChild] = useState({
     firstName: '',
     lastName: '',
@@ -36,24 +39,39 @@ export default function ChildrenScreen() {
   });
   const [isAdding, setIsAdding] = useState(false);
 
-  const handleAddChild = async () => {
+  const handleSubmit = async () => {
     if (!newChild.firstName || !newChild.lastName || !newChild.grade || !newChild.schoolName) {
       Alert.alert('Error', 'Please fill in required fields: First Name, Last Name, Grade, and School Name.');
       return;
     }
     setIsAdding(true);
     try {
-      await addChild({
-        firstName: newChild.firstName,
-        lastName: newChild.lastName,
-        grade: newChild.grade,
-        schoolName: newChild.schoolName,
-        dateOfBirth: newChild.dateOfBirth || undefined,
-        homeLanguage: newChild.homeLanguage || undefined,
-        rideType: newChild.rideType || undefined,
-        studentId: newChild.studentId || undefined,
-      });
-      Alert.alert('Success', 'Child added successfully!');
+      if (modalMode === 'edit' && editingChild) {
+        await updateChild({
+          id: editingChild._id,
+          firstName: newChild.firstName,
+          lastName: newChild.lastName,
+          grade: newChild.grade,
+          schoolName: newChild.schoolName,
+          dateOfBirth: newChild.dateOfBirth || undefined,
+          homeLanguage: newChild.homeLanguage || undefined,
+          rideType: newChild.rideType || undefined,
+          studentId: newChild.studentId || undefined,
+        });
+        Alert.alert('Success', 'Child updated successfully!');
+      } else {
+        await addChild({
+          firstName: newChild.firstName,
+          lastName: newChild.lastName,
+          grade: newChild.grade,
+          schoolName: newChild.schoolName,
+          dateOfBirth: newChild.dateOfBirth || undefined,
+          homeLanguage: newChild.homeLanguage || undefined,
+          rideType: newChild.rideType || undefined,
+          studentId: newChild.studentId || undefined,
+        });
+        Alert.alert('Success', 'Child added successfully!');
+      }
       setModalVisible(false);
       setNewChild({
         firstName: '',
@@ -65,11 +83,45 @@ export default function ChildrenScreen() {
         rideType: '',
         studentId: '',
       });
+      setEditingChild(null);
+      setModalMode('add');
     } catch (error: any) {
-      Alert.alert('Error', error.message || 'Failed to add child.');
+      Alert.alert('Error', error.message || `Failed to ${modalMode} child.`);
     } finally {
       setIsAdding(false);
     }
+  };
+
+  const handleOpenAddModal = () => {
+    setModalMode('add');
+    setEditingChild(null);
+    setNewChild({
+      firstName: '',
+      lastName: '',
+      grade: '',
+      schoolName: '',
+      dateOfBirth: '',
+      homeLanguage: '',
+      rideType: '',
+      studentId: '',
+    });
+    setModalVisible(true);
+  };
+
+  const handleOpenEditModal = (child: Child) => {
+    setModalMode('edit');
+    setEditingChild(child);
+    setNewChild({
+      firstName: child.firstName,
+      lastName: child.lastName,
+      grade: child.grade,
+      schoolName: child.schoolName,
+      dateOfBirth: child.dateOfBirth || '',
+      homeLanguage: child.homeLanguage || '',
+      rideType: child.rideType || '',
+      studentId: child.studentId || '',
+    });
+    setModalVisible(true);
   };
 
   const handleToggleActive = (child: Child) => {
@@ -117,12 +169,20 @@ export default function ChildrenScreen() {
         <View style={[styles.statusIndicator, item.active ? styles.active : styles.inactive]} />
         <Text style={styles.statusText}>{item.active ? 'Active' : 'Inactive'}</Text>
       </View>
-      <TouchableOpacity
-        style={[styles.actionButton, !item.active && styles.reactivateButton]}
-        onPress={() => handleToggleActive(item)}
-      >
-        <Text style={styles.actionButtonText}>{item.active ? 'Deactivate' : 'Reactivate'}</Text>
-      </TouchableOpacity>
+      <View style={styles.actionsRow}>
+        <TouchableOpacity
+          style={styles.editButton}
+          onPress={() => handleOpenEditModal(item)}
+        >
+          <Text style={styles.editButtonText}>Edit</Text>
+        </TouchableOpacity>
+        <TouchableOpacity
+          style={[styles.actionButton, !item.active && styles.reactivateButton]}
+          onPress={() => handleToggleActive(item)}
+        >
+          <Text style={styles.actionButtonText}>{item.active ? 'Deactivate' : 'Reactivate'}</Text>
+        </TouchableOpacity>
+      </View>
     </View>
   );
 
@@ -130,7 +190,7 @@ export default function ChildrenScreen() {
     <View style={styles.container}>
       <View style={styles.header}>
         <Text style={styles.title}>Children Management</Text>
-        <TouchableOpacity style={styles.addButton} onPress={() => setModalVisible(true)}>
+        <TouchableOpacity style={styles.addButton} onPress={handleOpenAddModal}>
           <Text style={styles.addButtonText}>+ Add Child</Text>
         </TouchableOpacity>
       </View>
@@ -161,7 +221,7 @@ export default function ChildrenScreen() {
             keyboardShouldPersistTaps="handled"
           >
             <View style={styles.modalContent}>
-              <Text style={styles.modalTitle}>Add New Child</Text>
+              <Text style={styles.modalTitle}>{modalMode === 'add' ? 'Add New Child' : 'Edit Child'}</Text>
 
               {/* Required Fields */}
               <Text style={styles.sectionLabel}>Required Information</Text>
@@ -230,11 +290,13 @@ export default function ChildrenScreen() {
                 <TouchableOpacity style={[styles.modalButton, styles.cancelButton]} onPress={() => setModalVisible(false)}>
                   <Text style={styles.modalButtonText}>Cancel</Text>
                 </TouchableOpacity>
-                <TouchableOpacity style={[styles.modalButton, styles.submitButton]} onPress={handleAddChild} disabled={isAdding}>
+                <TouchableOpacity style={[styles.modalButton, styles.submitButton]} onPress={handleSubmit} disabled={isAdding}>
                   {isAdding ? (
                     <ActivityIndicator color="#FFFFFF" />
                   ) : (
-                    <Text style={[styles.modalButtonText, styles.submitButtonText]}>Add Child</Text>
+                    <Text style={[styles.modalButtonText, styles.submitButtonText]}>
+                      {modalMode === 'add' ? 'Add Child' : 'Update Child'}
+                    </Text>
                   )}
                 </TouchableOpacity>
               </View>
@@ -330,6 +392,23 @@ const styles = StyleSheet.create({
   statusText: {
     fontSize: 14,
     fontWeight: '500',
+  },
+  actionsRow: {
+    flexDirection: 'row',
+    gap: 8,
+  },
+  editButton: {
+    backgroundColor: '#E3F2FD',
+    paddingVertical: 6,
+    paddingHorizontal: 10,
+    borderRadius: 6,
+    borderColor: '#2196F3',
+    borderWidth: 1,
+  },
+  editButtonText: {
+    color: '#2196F3',
+    fontWeight: '500',
+    fontSize: 12,
   },
   actionButton: {
     backgroundColor: '#F0F0F0',

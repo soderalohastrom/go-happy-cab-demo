@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { StyleSheet, Text, View, FlatList, TouchableOpacity, ActivityIndicator, Modal, TextInput, Alert, KeyboardAvoidingView, Platform } from 'react-native';
-import { useAllDrivers, useAddDriver, useDeactivateDriver, useReactivateDriver } from '../../hooks/useConvexRoutes';
+import { useAllDrivers, useAddDriver, useDeactivateDriver, useReactivateDriver, useUpdateDriver } from '../../hooks/useConvexRoutes';
 import { Id } from '../../convex/_generated/dataModel';
 
 // Define a type for the driver object for clarity
@@ -19,8 +19,11 @@ export default function DriversScreen() {
   const addDriver = useAddDriver();
   const deactivateDriver = useDeactivateDriver();
   const reactivateDriver = useReactivateDriver();
+  const updateDriver = useUpdateDriver();
 
   const [modalVisible, setModalVisible] = useState(false);
+  const [modalMode, setModalMode] = useState<'add' | 'edit'>('add');
+  const [editingDriver, setEditingDriver] = useState<Driver | null>(null);
   const [newDriver, setNewDriver] = useState({
     firstName: '',
     lastName: '',
@@ -29,22 +32,54 @@ export default function DriversScreen() {
   });
   const [isAdding, setIsAdding] = useState(false);
 
-  const handleAddDriver = async () => {
+  const handleSubmit = async () => {
     if (!newDriver.firstName || !newDriver.lastName || !newDriver.email || !newDriver.phone) {
       Alert.alert('Error', 'Please fill in all fields.');
       return;
     }
     setIsAdding(true);
     try {
-      await addDriver(newDriver);
-      Alert.alert('Success', 'Driver added successfully!');
+      if (modalMode === 'edit' && editingDriver) {
+        await updateDriver({
+          id: editingDriver._id,
+          firstName: newDriver.firstName,
+          lastName: newDriver.lastName,
+          email: newDriver.email,
+          phone: newDriver.phone,
+        });
+        Alert.alert('Success', 'Driver updated successfully!');
+      } else {
+        await addDriver(newDriver);
+        Alert.alert('Success', 'Driver added successfully!');
+      }
       setModalVisible(false);
       setNewDriver({ firstName: '', lastName: '', email: '', phone: '' });
+      setEditingDriver(null);
+      setModalMode('add');
     } catch (error: any) {
-      Alert.alert('Error', error.message || 'Failed to add driver.');
+      Alert.alert('Error', error.message || `Failed to ${modalMode} driver.`);
     } finally {
       setIsAdding(false);
     }
+  };
+
+  const handleOpenAddModal = () => {
+    setModalMode('add');
+    setEditingDriver(null);
+    setNewDriver({ firstName: '', lastName: '', email: '', phone: '' });
+    setModalVisible(true);
+  };
+
+  const handleOpenEditModal = (driver: Driver) => {
+    setModalMode('edit');
+    setEditingDriver(driver);
+    setNewDriver({
+      firstName: driver.firstName,
+      lastName: driver.lastName,
+      email: driver.email,
+      phone: driver.phone,
+    });
+    setModalVisible(true);
   };
 
   const handleToggleActive = (driver: Driver) => {
@@ -84,12 +119,20 @@ export default function DriversScreen() {
         <View style={[styles.statusIndicator, item.active ? styles.active : styles.inactive]} />
         <Text style={styles.statusText}>{item.active ? 'Active' : 'Inactive'}</Text>
       </View>
-      <TouchableOpacity 
-        style={[styles.actionButton, !item.active && styles.reactivateButton]} 
-        onPress={() => handleToggleActive(item)}
-      >
-        <Text style={styles.actionButtonText}>{item.active ? 'Deactivate' : 'Reactivate'}</Text>
-      </TouchableOpacity>
+      <View style={styles.actionsRow}>
+        <TouchableOpacity
+          style={styles.editButton}
+          onPress={() => handleOpenEditModal(item)}
+        >
+          <Text style={styles.editButtonText}>Edit</Text>
+        </TouchableOpacity>
+        <TouchableOpacity
+          style={[styles.actionButton, !item.active && styles.reactivateButton]}
+          onPress={() => handleToggleActive(item)}
+        >
+          <Text style={styles.actionButtonText}>{item.active ? 'Deactivate' : 'Reactivate'}</Text>
+        </TouchableOpacity>
+      </View>
     </View>
   );
 
@@ -97,7 +140,7 @@ export default function DriversScreen() {
     <View style={styles.container}>
       <View style={styles.header}>
         <Text style={styles.title}>Driver Management</Text>
-        <TouchableOpacity style={styles.addButton} onPress={() => setModalVisible(true)}>
+        <TouchableOpacity style={styles.addButton} onPress={handleOpenAddModal}>
           <Text style={styles.addButtonText}>+ Add Driver</Text>
         </TouchableOpacity>
       </View>
@@ -124,7 +167,7 @@ export default function DriversScreen() {
           style={styles.modalOverlay}
         >
           <View style={styles.modalContent}>
-            <Text style={styles.modalTitle}>Add New Driver</Text>
+            <Text style={styles.modalTitle}>{modalMode === 'add' ? 'Add New Driver' : 'Edit Driver'}</Text>
             <TextInput
               style={styles.input}
               placeholder="First Name"
@@ -160,11 +203,13 @@ export default function DriversScreen() {
               <TouchableOpacity style={[styles.modalButton, styles.cancelButton]} onPress={() => setModalVisible(false)}>
                 <Text style={styles.modalButtonText}>Cancel</Text>
               </TouchableOpacity>
-              <TouchableOpacity style={[styles.modalButton, styles.submitButton]} onPress={handleAddDriver} disabled={isAdding}>
+              <TouchableOpacity style={[styles.modalButton, styles.submitButton]} onPress={handleSubmit} disabled={isAdding}>
                 {isAdding ? (
                   <ActivityIndicator color="#FFFFFF" />
                 ) : (
-                  <Text style={[styles.modalButtonText, styles.submitButtonText]}>Add Driver</Text>
+                  <Text style={[styles.modalButtonText, styles.submitButtonText]}>
+                    {modalMode === 'add' ? 'Add Driver' : 'Update Driver'}
+                  </Text>
                 )}
               </TouchableOpacity>
             </View>
@@ -254,6 +299,23 @@ const styles = StyleSheet.create({
   statusText: {
     fontSize: 14,
     fontWeight: '500',
+  },
+  actionsRow: {
+    flexDirection: 'row',
+    gap: 8,
+  },
+  editButton: {
+    backgroundColor: '#E3F2FD',
+    paddingVertical: 6,
+    paddingHorizontal: 10,
+    borderRadius: 6,
+    borderColor: '#2196F3',
+    borderWidth: 1,
+  },
+  editButtonText: {
+    color: '#2196F3',
+    fontWeight: '500',
+    fontSize: 12,
   },
   actionButton: {
     backgroundColor: '#F0F0F0',

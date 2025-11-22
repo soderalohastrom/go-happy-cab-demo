@@ -210,6 +210,65 @@ export const importNonSchoolDays = mutation({
 });
 
 // ============================================================================
+// UPDATE MUTATIONS
+// Used by the Dispatch App UI to edit existing records
+// ============================================================================
+
+/**
+ * Update an existing district record.
+ * All fields except id are optional - only provided fields will be updated.
+ */
+export const updateDistrict = mutation({
+    args: {
+        id: v.id("districts"),
+        districtName: v.optional(v.string()),
+        clientName: v.optional(v.string()),
+        rate: v.optional(v.number()),
+    },
+    handler: async (ctx, args) => {
+        const { id, ...updates } = args;
+
+        // Filter out undefined values
+        const filteredUpdates = Object.fromEntries(
+            Object.entries(updates).filter(([_, value]) => value !== undefined)
+        );
+
+        await ctx.db.patch(id, filteredUpdates);
+        return id;
+    },
+});
+
+/**
+ * Update an existing school record.
+ * All fields except id are optional - only provided fields will be updated.
+ */
+export const updateSchool = mutation({
+    args: {
+        id: v.id("schools"),
+        districtId: v.optional(v.id("districts")),
+        schoolName: v.optional(v.string()),
+        streetAddress: v.optional(v.string()),
+        city: v.optional(v.string()),
+        state: v.optional(v.string()),
+        zip: v.optional(v.string()),
+        officePhone: v.optional(v.string()),
+        firstDay: v.optional(v.string()),
+        lastDay: v.optional(v.string()),
+    },
+    handler: async (ctx, args) => {
+        const { id, ...updates } = args;
+
+        // Filter out undefined values
+        const filteredUpdates = Object.fromEntries(
+            Object.entries(updates).filter(([_, value]) => value !== undefined)
+        );
+
+        await ctx.db.patch(id, filteredUpdates);
+        return id;
+    },
+});
+
+// ============================================================================
 // QUERY FUNCTIONS
 // Used by the Dispatch App UI to display schools data
 // ============================================================================

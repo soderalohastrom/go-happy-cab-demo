@@ -105,3 +105,37 @@ export const reactivate = mutation({
     return args.id;
   },
 });
+
+/**
+ * Update an existing child record.
+ * All fields except id are optional - only provided fields will be updated.
+ */
+export const update = mutation({
+  args: {
+    id: v.id("children"),
+    firstName: v.optional(v.string()),
+    lastName: v.optional(v.string()),
+    grade: v.optional(v.string()),
+    schoolName: v.optional(v.string()),
+    dateOfBirth: v.optional(v.string()),
+    homeLanguage: v.optional(v.string()),
+    rideType: v.optional(v.string()),
+    studentId: v.optional(v.string()),
+  },
+  handler: async (ctx, args) => {
+    const { id, ...updates } = args;
+
+    // Filter out undefined values
+    const filteredUpdates = Object.fromEntries(
+      Object.entries(updates).filter(([_, value]) => value !== undefined)
+    );
+
+    // Always update the timestamp
+    await ctx.db.patch(id, {
+      ...filteredUpdates,
+      updatedAt: new Date().toISOString(),
+    });
+
+    return id;
+  },
+});
