@@ -58,10 +58,29 @@ export const create = internalMutation({
  */
 export const addDriver = action({
   args: {
+    employeeId: v.string(),
     firstName: v.string(),
+    middleName: v.optional(v.string()),
     lastName: v.string(),
     email: v.string(),
     phone: v.string(),
+    primaryLanguage: v.optional(v.string()),
+    address: v.optional(v.object({
+      street: v.string(),
+      street2: v.optional(v.string()),
+      city: v.string(),
+      state: v.string(),
+      zip: v.string(),
+    })),
+    startDate: v.optional(v.string()),
+    availabilityAM: v.optional(v.string()),
+    availabilityPM: v.optional(v.string()),
+    specialEquipment: v.optional(v.string()),
+    emergencyContact: v.optional(v.object({
+      name: v.string(),
+      phone: v.string(),
+      relationship: v.string(),
+    })),
   },
   handler: async (ctx, args) => {
     const clerkSecretKey = process.env.CLERK_SECRET_KEY;
@@ -138,11 +157,29 @@ export const reactivate = internalMutation({
 export const update = internalMutation({
   args: {
     id: v.id("drivers"),
+    employeeId: v.optional(v.string()),
     firstName: v.optional(v.string()),
+    middleName: v.optional(v.string()),
     lastName: v.optional(v.string()),
     email: v.optional(v.string()),
     phone: v.optional(v.string()),
-    employeeId: v.optional(v.string()),
+    primaryLanguage: v.optional(v.string()),
+    address: v.optional(v.object({
+      street: v.string(),
+      street2: v.optional(v.string()),
+      city: v.string(),
+      state: v.string(),
+      zip: v.string(),
+    })),
+    startDate: v.optional(v.string()),
+    availabilityAM: v.optional(v.string()),
+    availabilityPM: v.optional(v.string()),
+    specialEquipment: v.optional(v.string()),
+    emergencyContact: v.optional(v.object({
+      name: v.string(),
+      phone: v.string(),
+      relationship: v.string(),
+    })),
   },
   handler: async (ctx, args) => {
     const { id, ...updates } = args;

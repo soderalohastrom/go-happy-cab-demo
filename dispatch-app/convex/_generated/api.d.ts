@@ -16,6 +16,7 @@ import type * as createCarpoolForScott from "../createCarpoolForScott.js";
 import type * as driverActions from "../driverActions.js";
 import type * as drivers from "../drivers.js";
 import type * as googleSheets from "../googleSheets.js";
+import type * as importData from "../importData.js";
 import type * as importRealData from "../importRealData.js";
 import type * as internal_auditLogs from "../internal/auditLogs.js";
 import type * as payroll from "../payroll.js";
@@ -39,6 +40,7 @@ declare const fullApi: ApiFromModules<{
   driverActions: typeof driverActions;
   drivers: typeof drivers;
   googleSheets: typeof googleSheets;
+  importData: typeof importData;
   importRealData: typeof importRealData;
   "internal/auditLogs": typeof internal_auditLogs;
   payroll: typeof payroll;

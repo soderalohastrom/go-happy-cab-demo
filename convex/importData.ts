@@ -251,3 +251,44 @@ export const importAssignments = mutation({
         return results;
     },
 });
+
+export const copyRoutesToDate = mutation({
+    args: {
+        sourceDate: v.string(),
+        targetDate: v.string(),
+    },
+    handler: async (ctx, args) => {
+        const routes = await ctx.db
+            .query("routes")
+            .withIndex("by_date_period", (q) => q.eq("date", args.sourceDate))
+            .collect();
+
+        let count = 0;
+        for (const route of routes) {
+            // Check if already exists
+            const existing = await ctx.db
+                .query("routes")
+                .withIndex("by_child_date_period", (q) =>
+                    q.eq("childId", route.childId)
+                        .eq("date", args.targetDate)
+                        .eq("period", route.period)
+                )
+                .first();
+
+            if (!existing) {
+                await ctx.db.insert("routes", {
+                    driverId: route.driverId,
+                    childId: route.childId,
+                    date: args.targetDate,
+                    period: route.period,
+                    type: route.type,
+                    status: "scheduled",
+                    createdAt: new Date().toISOString(),
+                    updatedAt: new Date().toISOString(),
+                });
+                count++;
+            }
+        }
+        return { copied: count, sourceCount: routes.length };
+    },
+});
