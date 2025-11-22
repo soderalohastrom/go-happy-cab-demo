@@ -20,6 +20,7 @@ import type * as importData from "../importData.js";
 import type * as importRealData from "../importRealData.js";
 import type * as internal_auditLogs from "../internal/auditLogs.js";
 import type * as payroll from "../payroll.js";
+import type * as reports from "../reports.js";
 import type * as schools from "../schools.js";
 import type * as seed from "../seed.js";
 import type * as setupTestDriver from "../setupTestDriver.js";
@@ -44,6 +45,7 @@ declare const fullApi: ApiFromModules<{
   importRealData: typeof importRealData;
   "internal/auditLogs": typeof internal_auditLogs;
   payroll: typeof payroll;
+  reports: typeof reports;
   schools: typeof schools;
   seed: typeof seed;
   setupTestDriver: typeof setupTestDriver;

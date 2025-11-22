@@ -3,16 +3,27 @@ import { StyleSheet, SafeAreaView } from "react-native";
 import { DateRangePicker } from "../../components/DateRangePicker";
 import { PayrollReport } from "../../components/PayrollReport";
 import { getCurrentPayPeriod } from "../../hooks/usePayrollReport";
+import ReportTabs from "../../components/ReportTabs";
+import DriverChildReport from "../../components/DriverChildReport";
+import DistrictSchoolReport from "../../components/DistrictSchoolReport";
+
+type TabType = 'payroll' | 'assignments' | 'districts';
 
 /**
  * Reports Screen
  *
- * Payroll reporting interface for dispatch app.
- * Allows selection of date ranges and export of payroll data.
+ * Multi-report interface with tabbed navigation:
+ * - Payroll: Date range export for driver compensation
+ * - Assignments: Driver/child pairings for specific dates
+ * - Districts: Hierarchical district → school → children report
  */
 export default function ReportsScreen() {
   const currentPeriod = getCurrentPayPeriod();
 
+  // Tab state
+  const [activeTab, setActiveTab] = useState<TabType>('payroll');
+
+  // Payroll report state (date range)
   const [startDate, setStartDate] = useState(currentPeriod.startDate);
   const [endDate, setEndDate] = useState(currentPeriod.endDate);
 
@@ -23,13 +34,22 @@ export default function ReportsScreen() {
 
   return (
     <SafeAreaView style={styles.container}>
-      <DateRangePicker
-        startDate={startDate}
-        endDate={endDate}
-        onDateRangeChange={handleDateRangeChange}
-      />
+      <ReportTabs activeTab={activeTab} onTabChange={setActiveTab} />
 
-      <PayrollReport startDate={startDate} endDate={endDate} />
+      {activeTab === 'payroll' && (
+        <>
+          <DateRangePicker
+            startDate={startDate}
+            endDate={endDate}
+            onDateRangeChange={handleDateRangeChange}
+          />
+          <PayrollReport startDate={startDate} endDate={endDate} />
+        </>
+      )}
+
+      {activeTab === 'assignments' && <DriverChildReport />}
+
+      {activeTab === 'districts' && <DistrictSchoolReport />}
     </SafeAreaView>
   );
 }
