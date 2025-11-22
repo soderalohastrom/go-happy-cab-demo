@@ -175,6 +175,10 @@ export function useReactivateDriver() {
   return useMutation(api.drivers.reactivate);
 }
 
+export function useUpdateDriver() {
+  return useMutation(api.drivers.update);
+}
+
 // =============================================================================
 // Children Management
 // =============================================================================
@@ -193,6 +197,10 @@ export function useDeactivateChild() {
 
 export function useReactivateChild() {
   return useMutation(api.children.reactivate);
+}
+
+export function useUpdateChild() {
+  return useMutation(api.children.update);
 }
 
 // =============================================================================
@@ -270,6 +278,40 @@ export function useAddSchoolSchedule() {
  */
 export function useAddNonSchoolDays() {
   return useMutation(api.schools.importNonSchoolDays);
+}
+
+/**
+ * Update an existing district
+ */
+export function useUpdateDistrict() {
+  return useMutation(api.schools.updateDistrict);
+}
+
+/**
+ * Update an existing school
+ */
+export function useUpdateSchool() {
+  return useMutation(api.schools.updateSchool);
+}
+
+// =============================================================================
+// Reports - Specialized Report Queries
+// =============================================================================
+
+/**
+ * Get driver-child assignment pairings for a specific date and period
+ * Used for: Assignments Report Tab
+ */
+export function useDriverChildReport(date: string, period: 'AM' | 'PM') {
+  return useQuery(api.reports.getRoutesForDateRange, { date, period });
+}
+
+/**
+ * Get district/school hierarchy with children for a specific date and period
+ * Used for: Districts Report Tab
+ */
+export function useDistrictSchoolReport(date: string, period: 'AM' | 'PM') {
+  return useQuery(api.reports.getDistrictSchoolReport, { date, period });
 }
 
 /**

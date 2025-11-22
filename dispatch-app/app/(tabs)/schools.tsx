@@ -19,6 +19,8 @@ import {
   useAllSchools,
   useAddDistrict,
   useAddSchool,
+  useUpdateDistrict,
+  useUpdateSchool,
 } from '../../hooks/useConvexRoutes';
 import { Id } from '../../convex/_generated/dataModel';
 
@@ -48,12 +50,16 @@ export default function SchoolsScreen() {
   const schools = useAllSchools();
   const addDistrict = useAddDistrict();
   const addSchool = useAddSchool();
+  const updateDistrict = useUpdateDistrict();
+  const updateSchool = useUpdateSchool();
 
   // Segmented control state
   const [activeTab, setActiveTab] = useState<'districts' | 'schools'>('districts');
 
   // District modal state
   const [districtModalVisible, setDistrictModalVisible] = useState(false);
+  const [districtModalMode, setDistrictModalMode] = useState<'add' | 'edit'>('add');
+  const [editingDistrict, setEditingDistrict] = useState<District | null>(null);
   const [newDistrict, setNewDistrict] = useState({
     districtName: '',
     clientName: '',
@@ -63,6 +69,8 @@ export default function SchoolsScreen() {
 
   // School modal state
   const [schoolModalVisible, setSchoolModalVisible] = useState(false);
+  const [schoolModalMode, setSchoolModalMode] = useState<'add' | 'edit'>('add');
+  const [editingSchool, setEditingSchool] = useState<School | null>(null);
   const [newSchool, setNewSchool] = useState({
     districtName: '',
     schoolName: '',
@@ -76,8 +84,8 @@ export default function SchoolsScreen() {
   });
   const [isAddingSchool, setIsAddingSchool] = useState(false);
 
-  // Handle add district
-  const handleAddDistrict = async () => {
+  // Handle submit district (add or edit)
+  const handleSubmitDistrict = async () => {
     if (!newDistrict.districtName || !newDistrict.clientName || !newDistrict.rate) {
       Alert.alert('Error', 'Please fill in all fields.');
       return;
@@ -91,25 +99,55 @@ export default function SchoolsScreen() {
 
     setIsAddingDistrict(true);
     try {
-      await addDistrict({
-        districts: [{
+      if (districtModalMode === 'edit' && editingDistrict) {
+        await updateDistrict({
+          id: editingDistrict._id,
           districtName: newDistrict.districtName,
           clientName: newDistrict.clientName,
           rate,
-        }],
-      });
-      Alert.alert('Success', 'District added successfully!');
+        });
+        Alert.alert('Success', 'District updated successfully!');
+      } else {
+        await addDistrict({
+          districts: [{
+            districtName: newDistrict.districtName,
+            clientName: newDistrict.clientName,
+            rate,
+          }],
+        });
+        Alert.alert('Success', 'District added successfully!');
+      }
       setDistrictModalVisible(false);
       setNewDistrict({ districtName: '', clientName: '', rate: '' });
+      setEditingDistrict(null);
+      setDistrictModalMode('add');
     } catch (error: any) {
-      Alert.alert('Error', error.message || 'Failed to add district.');
+      Alert.alert('Error', error.message || `Failed to ${districtModalMode} district.`);
     } finally {
       setIsAddingDistrict(false);
     }
   };
 
-  // Handle add school
-  const handleAddSchool = async () => {
+  const handleOpenAddDistrictModal = () => {
+    setDistrictModalMode('add');
+    setEditingDistrict(null);
+    setNewDistrict({ districtName: '', clientName: '', rate: '' });
+    setDistrictModalVisible(true);
+  };
+
+  const handleOpenEditDistrictModal = (district: District) => {
+    setDistrictModalMode('edit');
+    setEditingDistrict(district);
+    setNewDistrict({
+      districtName: district.districtName,
+      clientName: district.clientName,
+      rate: district.rate.toString(),
+    });
+    setDistrictModalVisible(true);
+  };
+
+  // Handle submit school (add or edit)
+  const handleSubmitSchool = async () => {
     if (
       !newSchool.districtName ||
       !newSchool.schoolName ||
@@ -127,10 +165,32 @@ export default function SchoolsScreen() {
 
     setIsAddingSchool(true);
     try {
-      await addSchool({
-        schools: [newSchool],
-      });
-      Alert.alert('Success', 'School added successfully!');
+      if (schoolModalMode === 'edit' && editingSchool) {
+        // Find district by name
+        const district = districts?.find(d => d.districtName === newSchool.districtName);
+        if (!district) {
+          Alert.alert('Error', 'Selected district not found.');
+          return;
+        }
+        await updateSchool({
+          id: editingSchool._id,
+          districtId: district._id,
+          schoolName: newSchool.schoolName,
+          streetAddress: newSchool.streetAddress,
+          city: newSchool.city,
+          state: newSchool.state,
+          zip: newSchool.zip,
+          officePhone: newSchool.officePhone,
+          firstDay: newSchool.firstDay,
+          lastDay: newSchool.lastDay,
+        });
+        Alert.alert('Success', 'School updated successfully!');
+      } else {
+        await addSchool({
+          schools: [newSchool],
+        });
+        Alert.alert('Success', 'School added successfully!');
+      }
       setSchoolModalVisible(false);
       setNewSchool({
         districtName: '',
@@ -143,38 +203,90 @@ export default function SchoolsScreen() {
         firstDay: '',
         lastDay: '',
       });
+      setEditingSchool(null);
+      setSchoolModalMode('add');
     } catch (error: any) {
-      Alert.alert('Error', error.message || 'Failed to add school.');
+      Alert.alert('Error', error.message || `Failed to ${schoolModalMode} school.`);
     } finally {
       setIsAddingSchool(false);
     }
   };
 
+  const handleOpenAddSchoolModal = () => {
+    setSchoolModalMode('add');
+    setEditingSchool(null);
+    setNewSchool({
+      districtName: '',
+      schoolName: '',
+      streetAddress: '',
+      city: '',
+      state: 'CA',
+      zip: '',
+      officePhone: '',
+      firstDay: '',
+      lastDay: '',
+    });
+    setSchoolModalVisible(true);
+  };
+
+  const handleOpenEditSchoolModal = (school: School) => {
+    setSchoolModalMode('edit');
+    setEditingSchool(school);
+    setNewSchool({
+      districtName: school.districtName,
+      schoolName: school.schoolName,
+      streetAddress: school.streetAddress,
+      city: school.city,
+      state: school.state,
+      zip: school.zip,
+      officePhone: school.officePhone,
+      firstDay: school.firstDay,
+      lastDay: school.lastDay,
+    });
+    setSchoolModalVisible(true);
+  };
+
   // Render district card
   const renderDistrict = ({ item }: { item: District }) => (
     <View style={styles.card}>
-      <View style={styles.cardHeader}>
-        <Text style={styles.cardTitle}>{item.districtName}</Text>
-        <Text style={styles.rateText}>${item.rate.toFixed(2)}</Text>
+      <View style={styles.cardContent}>
+        <View style={styles.cardHeader}>
+          <Text style={styles.cardTitle}>{item.districtName}</Text>
+          <Text style={styles.rateText}>${item.rate.toFixed(2)}</Text>
+        </View>
+        <Text style={styles.cardSubtitle}>{item.clientName}</Text>
       </View>
-      <Text style={styles.cardSubtitle}>{item.clientName}</Text>
+      <TouchableOpacity
+        style={styles.editButton}
+        onPress={() => handleOpenEditDistrictModal(item)}
+      >
+        <Text style={styles.editButtonText}>Edit</Text>
+      </TouchableOpacity>
     </View>
   );
 
   // Render school card
   const renderSchool = ({ item }: { item: School }) => (
     <View style={styles.card}>
-      <View style={styles.cardHeader}>
-        <Text style={styles.cardTitle}>{item.schoolName}</Text>
-        <Text style={styles.districtBadge}>{item.districtName}</Text>
+      <View style={styles.cardContent}>
+        <View style={styles.cardHeader}>
+          <Text style={styles.cardTitle}>{item.schoolName}</Text>
+          <Text style={styles.districtBadge}>{item.districtName}</Text>
+        </View>
+        <Text style={styles.cardSubtitle}>
+          {item.streetAddress}, {item.city}, {item.state} {item.zip}
+        </Text>
+        <Text style={styles.phoneText}>{item.officePhone}</Text>
+        <Text style={styles.datesText}>
+          {item.firstDay} to {item.lastDay}
+        </Text>
       </View>
-      <Text style={styles.cardSubtitle}>
-        {item.streetAddress}, {item.city}, {item.state} {item.zip}
-      </Text>
-      <Text style={styles.phoneText}>{item.officePhone}</Text>
-      <Text style={styles.datesText}>
-        {item.firstDay} to {item.lastDay}
-      </Text>
+      <TouchableOpacity
+        style={styles.editButton}
+        onPress={() => handleOpenEditSchoolModal(item)}
+      >
+        <Text style={styles.editButtonText}>Edit</Text>
+      </TouchableOpacity>
     </View>
   );
 
@@ -223,7 +335,7 @@ export default function SchoolsScreen() {
           />
           <TouchableOpacity
             style={styles.addButton}
-            onPress={() => setDistrictModalVisible(true)}
+            onPress={handleOpenAddDistrictModal}
           >
             <Text style={styles.addButtonText}>+ Add District</Text>
           </TouchableOpacity>
@@ -244,7 +356,7 @@ export default function SchoolsScreen() {
           />
           <TouchableOpacity
             style={styles.addButton}
-            onPress={() => setSchoolModalVisible(true)}
+            onPress={handleOpenAddSchoolModal}
           >
             <Text style={styles.addButtonText}>+ Add School</Text>
           </TouchableOpacity>
@@ -260,7 +372,7 @@ export default function SchoolsScreen() {
       >
         <View style={styles.modalOverlay}>
           <View style={styles.modalContent}>
-            <Text style={styles.modalTitle}>Add District</Text>
+            <Text style={styles.modalTitle}>{districtModalMode === 'add' ? 'Add District' : 'Edit District'}</Text>
 
             <TextInput
               style={styles.input}
@@ -292,13 +404,13 @@ export default function SchoolsScreen() {
               </TouchableOpacity>
               <TouchableOpacity
                 style={[styles.modalButton, styles.submitButton]}
-                onPress={handleAddDistrict}
+                onPress={handleSubmitDistrict}
                 disabled={isAddingDistrict}
               >
                 {isAddingDistrict ? (
                   <ActivityIndicator color="#FFF" />
                 ) : (
-                  <Text style={styles.submitButtonText}>Add</Text>
+                  <Text style={styles.submitButtonText}>{districtModalMode === 'add' ? 'Add' : 'Update'}</Text>
                 )}
               </TouchableOpacity>
             </View>
@@ -318,7 +430,7 @@ export default function SchoolsScreen() {
           behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
         >
           <View style={styles.modalContent}>
-            <Text style={styles.modalTitle}>Add School</Text>
+            <Text style={styles.modalTitle}>{schoolModalMode === 'add' ? 'Add School' : 'Edit School'}</Text>
 
             <ScrollView style={styles.scrollableForm} showsVerticalScrollIndicator={false}>
               <Text style={styles.sectionLabel}>DISTRICT</Text>
@@ -410,13 +522,13 @@ export default function SchoolsScreen() {
               </TouchableOpacity>
               <TouchableOpacity
                 style={[styles.modalButton, styles.submitButton]}
-                onPress={handleAddSchool}
+                onPress={handleSubmitSchool}
                 disabled={isAddingSchool}
               >
                 {isAddingSchool ? (
                   <ActivityIndicator color="#FFF" />
                 ) : (
-                  <Text style={styles.submitButtonText}>Add</Text>
+                  <Text style={styles.submitButtonText}>{schoolModalMode === 'add' ? 'Add' : 'Update'}</Text>
                 )}
               </TouchableOpacity>
             </View>
@@ -480,6 +592,26 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.1,
     shadowRadius: 3,
     elevation: 2,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  cardContent: {
+    flex: 1,
+  },
+  editButton: {
+    backgroundColor: '#E3F2FD',
+    paddingVertical: 6,
+    paddingHorizontal: 12,
+    borderRadius: 6,
+    borderColor: '#2196F3',
+    borderWidth: 1,
+    marginLeft: 12,
+  },
+  editButtonText: {
+    color: '#2196F3',
+    fontWeight: '600',
+    fontSize: 13,
   },
   cardHeader: {
     flexDirection: 'row',

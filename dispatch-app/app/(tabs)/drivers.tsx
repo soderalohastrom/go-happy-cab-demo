@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
-import { StyleSheet, Text, View, FlatList, TouchableOpacity, ActivityIndicator, Modal, TextInput, Alert, KeyboardAvoidingView, Platform } from 'react-native';
-import { useAllDrivers, useAddDriver, useDeactivateDriver, useReactivateDriver } from '../../hooks/useConvexRoutes';
+import { StyleSheet, Text, View, FlatList, TouchableOpacity, ActivityIndicator, Modal, TextInput, Alert, KeyboardAvoidingView, Platform, ScrollView } from 'react-native';
+import { Picker } from '@react-native-picker/picker';
+import { useAllDrivers, useAddDriver, useDeactivateDriver, useReactivateDriver, useUpdateDriver } from '../../hooks/useConvexRoutes';
 import { Id } from '../../convex/_generated/dataModel';
 
 // Define a type for the driver object for clarity
@@ -19,32 +20,124 @@ export default function DriversScreen() {
   const addDriver = useAddDriver();
   const deactivateDriver = useDeactivateDriver();
   const reactivateDriver = useReactivateDriver();
+  const updateDriver = useUpdateDriver();
 
   const [modalVisible, setModalVisible] = useState(false);
+  const [modalMode, setModalMode] = useState<'add' | 'edit'>('add');
+  const [editingDriver, setEditingDriver] = useState<Driver | null>(null);
   const [newDriver, setNewDriver] = useState({
+    employeeId: '',
     firstName: '',
+    middleName: '',
     lastName: '',
     email: '',
     phone: '',
+    primaryLanguage: '',
+    address: {
+      street: '',
+      street2: '',
+      city: '',
+      state: '',
+      zip: '',
+    },
+    startDate: '',
+    availabilityAM: '',
+    availabilityPM: '',
+    specialEquipment: '',
+    emergencyContact: {
+      name: '',
+      phone: '',
+      relationship: '',
+    },
   });
   const [isAdding, setIsAdding] = useState(false);
 
-  const handleAddDriver = async () => {
-    if (!newDriver.firstName || !newDriver.lastName || !newDriver.email || !newDriver.phone) {
-      Alert.alert('Error', 'Please fill in all fields.');
+  const handleSubmit = async () => {
+    if (!newDriver.employeeId || !newDriver.firstName || !newDriver.lastName || !newDriver.email || !newDriver.phone) {
+      Alert.alert('Error', 'Please fill in all required fields.');
       return;
     }
     setIsAdding(true);
     try {
-      await addDriver(newDriver);
-      Alert.alert('Success', 'Driver added successfully!');
+      if (modalMode === 'edit' && editingDriver) {
+        await updateDriver({
+          id: editingDriver._id,
+          employeeId: newDriver.employeeId,
+          firstName: newDriver.firstName,
+          lastName: newDriver.lastName,
+          email: newDriver.email,
+          phone: newDriver.phone,
+        });
+        Alert.alert('Success', 'Driver updated successfully!');
+      } else {
+        await addDriver(newDriver);
+        Alert.alert('Success', 'Driver added successfully!');
+      }
       setModalVisible(false);
-      setNewDriver({ firstName: '', lastName: '', email: '', phone: '' });
+      setNewDriver({
+        employeeId: '',
+        firstName: '',
+        middleName: '',
+        lastName: '',
+        email: '',
+        phone: '',
+        primaryLanguage: '',
+        address: { street: '', street2: '', city: '', state: '', zip: '' },
+        startDate: '',
+        availabilityAM: '',
+        availabilityPM: '',
+        specialEquipment: '',
+        emergencyContact: { name: '', phone: '', relationship: '' },
+      });
+      setEditingDriver(null);
+      setModalMode('add');
     } catch (error: any) {
-      Alert.alert('Error', error.message || 'Failed to add driver.');
+      Alert.alert('Error', error.message || `Failed to ${modalMode} driver.`);
     } finally {
       setIsAdding(false);
     }
+  };
+
+  const handleOpenAddModal = () => {
+    setModalMode('add');
+    setEditingDriver(null);
+    setNewDriver({
+      employeeId: '',
+      firstName: '',
+      middleName: '',
+      lastName: '',
+      email: '',
+      phone: '',
+      primaryLanguage: '',
+      address: { street: '', street2: '', city: '', state: '', zip: '' },
+      startDate: '',
+      availabilityAM: '',
+      availabilityPM: '',
+      specialEquipment: '',
+      emergencyContact: { name: '', phone: '', relationship: '' },
+    });
+    setModalVisible(true);
+  };
+
+  const handleOpenEditModal = (driver: Driver) => {
+    setModalMode('edit');
+    setEditingDriver(driver);
+    setNewDriver({
+      employeeId: driver.employeeId || '',
+      firstName: driver.firstName,
+      middleName: (driver as any).middleName || '',
+      lastName: driver.lastName,
+      email: driver.email,
+      phone: driver.phone,
+      primaryLanguage: (driver as any).primaryLanguage || '',
+      address: (driver as any).address || { street: '', street2: '', city: '', state: '', zip: '' },
+      startDate: (driver as any).startDate || '',
+      availabilityAM: (driver as any).availabilityAM || '',
+      availabilityPM: (driver as any).availabilityPM || '',
+      specialEquipment: (driver as any).specialEquipment || '',
+      emergencyContact: (driver as any).emergencyContact || { name: '', phone: '', relationship: '' },
+    });
+    setModalVisible(true);
   };
 
   const handleToggleActive = (driver: Driver) => {
@@ -84,12 +177,20 @@ export default function DriversScreen() {
         <View style={[styles.statusIndicator, item.active ? styles.active : styles.inactive]} />
         <Text style={styles.statusText}>{item.active ? 'Active' : 'Inactive'}</Text>
       </View>
-      <TouchableOpacity 
-        style={[styles.actionButton, !item.active && styles.reactivateButton]} 
-        onPress={() => handleToggleActive(item)}
-      >
-        <Text style={styles.actionButtonText}>{item.active ? 'Deactivate' : 'Reactivate'}</Text>
-      </TouchableOpacity>
+      <View style={styles.actionsRow}>
+        <TouchableOpacity
+          style={styles.editButton}
+          onPress={() => handleOpenEditModal(item)}
+        >
+          <Text style={styles.editButtonText}>Edit</Text>
+        </TouchableOpacity>
+        <TouchableOpacity
+          style={[styles.actionButton, !item.active && styles.reactivateButton]}
+          onPress={() => handleToggleActive(item)}
+        >
+          <Text style={styles.actionButtonText}>{item.active ? 'Deactivate' : 'Reactivate'}</Text>
+        </TouchableOpacity>
+      </View>
     </View>
   );
 
@@ -97,7 +198,7 @@ export default function DriversScreen() {
     <View style={styles.container}>
       <View style={styles.header}>
         <Text style={styles.title}>Driver Management</Text>
-        <TouchableOpacity style={styles.addButton} onPress={() => setModalVisible(true)}>
+        <TouchableOpacity style={styles.addButton} onPress={handleOpenAddModal}>
           <Text style={styles.addButtonText}>+ Add Driver</Text>
         </TouchableOpacity>
       </View>
@@ -119,52 +220,209 @@ export default function DriversScreen() {
         visible={modalVisible}
         onRequestClose={() => setModalVisible(false)}
       >
-        <KeyboardAvoidingView 
+        <KeyboardAvoidingView
           behavior={Platform.OS === "ios" ? "padding" : "height"}
           style={styles.modalOverlay}
         >
           <View style={styles.modalContent}>
-            <Text style={styles.modalTitle}>Add New Driver</Text>
-            <TextInput
-              style={styles.input}
-              placeholder="First Name"
-              placeholderTextColor="#999"
-              value={newDriver.firstName}
-              onChangeText={(text) => setNewDriver({ ...newDriver, firstName: text })}
-            />
-            <TextInput
-              style={styles.input}
-              placeholder="Last Name"
-              placeholderTextColor="#999"
-              value={newDriver.lastName}
-              onChangeText={(text) => setNewDriver({ ...newDriver, lastName: text })}
-            />
-            <TextInput
-              style={styles.input}
-              placeholder="Email Address"
-              placeholderTextColor="#999"
-              value={newDriver.email}
-              onChangeText={(text) => setNewDriver({ ...newDriver, email: text })}
-              keyboardType="email-address"
-              autoCapitalize="none"
-            />
-            <TextInput
-              style={styles.input}
-              placeholder="Phone Number"
-              placeholderTextColor="#999"
-              value={newDriver.phone}
-              onChangeText={(text) => setNewDriver({ ...newDriver, phone: text })}
-              keyboardType="phone-pad"
-            />
+            <Text style={styles.modalTitle}>{modalMode === 'add' ? 'Add New Driver' : 'Edit Driver'}</Text>
+            <ScrollView style={styles.scrollContainer} showsVerticalScrollIndicator={false}>
+              <TextInput
+                style={styles.input}
+                placeholder="Employee ID *"
+                placeholderTextColor="#999"
+                value={newDriver.employeeId}
+                onChangeText={(text) => setNewDriver({ ...newDriver, employeeId: text })}
+              />
+              <TextInput
+                style={styles.input}
+                placeholder="First Name *"
+                placeholderTextColor="#999"
+                value={newDriver.firstName}
+                onChangeText={(text) => setNewDriver({ ...newDriver, firstName: text })}
+              />
+              <TextInput
+                style={styles.input}
+                placeholder="Last Name *"
+                placeholderTextColor="#999"
+                value={newDriver.lastName}
+                onChangeText={(text) => setNewDriver({ ...newDriver, lastName: text })}
+              />
+              <TextInput
+                style={styles.input}
+                placeholder="Email Address *"
+                placeholderTextColor="#999"
+                value={newDriver.email}
+                onChangeText={(text) => setNewDriver({ ...newDriver, email: text })}
+                keyboardType="email-address"
+                autoCapitalize="none"
+              />
+              <TextInput
+                style={styles.input}
+                placeholder="Phone Number *"
+                placeholderTextColor="#999"
+                value={newDriver.phone}
+                onChangeText={(text) => setNewDriver({ ...newDriver, phone: text })}
+                keyboardType="phone-pad"
+              />
+              <TextInput
+                style={styles.input}
+                placeholder="Middle Name"
+                placeholderTextColor="#999"
+                value={newDriver.middleName}
+                onChangeText={(text) => setNewDriver({ ...newDriver, middleName: text })}
+              />
+              <TextInput
+                style={styles.input}
+                placeholder="Primary Language (e.g., Portuguese, Spanish)"
+                placeholderTextColor="#999"
+                value={newDriver.primaryLanguage}
+                onChangeText={(text) => setNewDriver({ ...newDriver, primaryLanguage: text })}
+              />
+
+              {/* Address Section */}
+              <Text style={styles.sectionTitle}>Address</Text>
+              <TextInput
+                style={styles.input}
+                placeholder="Street Address"
+                placeholderTextColor="#999"
+                value={newDriver.address.street}
+                onChangeText={(text) => setNewDriver({
+                  ...newDriver,
+                  address: { ...newDriver.address, street: text }
+                })}
+              />
+              <TextInput
+                style={styles.input}
+                placeholder="Apt/Unit/Suite (Optional)"
+                placeholderTextColor="#999"
+                value={newDriver.address.street2}
+                onChangeText={(text) => setNewDriver({
+                  ...newDriver,
+                  address: { ...newDriver.address, street2: text }
+                })}
+              />
+              <TextInput
+                style={styles.input}
+                placeholder="City"
+                placeholderTextColor="#999"
+                value={newDriver.address.city}
+                onChangeText={(text) => setNewDriver({
+                  ...newDriver,
+                  address: { ...newDriver.address, city: text }
+                })}
+              />
+              <TextInput
+                style={styles.input}
+                placeholder="State"
+                placeholderTextColor="#999"
+                value={newDriver.address.state}
+                onChangeText={(text) => setNewDriver({
+                  ...newDriver,
+                  address: { ...newDriver.address, state: text }
+                })}
+              />
+              <TextInput
+                style={styles.input}
+                placeholder="ZIP Code"
+                placeholderTextColor="#999"
+                value={newDriver.address.zip}
+                onChangeText={(text) => setNewDriver({
+                  ...newDriver,
+                  address: { ...newDriver.address, zip: text }
+                })}
+                keyboardType="numeric"
+              />
+
+              {/* Employment Details Section */}
+              <Text style={styles.sectionTitle}>Employment Details</Text>
+              <TextInput
+                style={styles.input}
+                placeholder="Start Date (YYYY-MM-DD)"
+                placeholderTextColor="#999"
+                value={newDriver.startDate}
+                onChangeText={(text) => setNewDriver({ ...newDriver, startDate: text })}
+              />
+
+              <Text style={styles.fieldLabel}>Availability AM</Text>
+              <Picker
+                selectedValue={newDriver.availabilityAM}
+                onValueChange={(value) => setNewDriver({ ...newDriver, availabilityAM: value })}
+                style={styles.picker}
+              >
+                <Picker.Item label="Select..." value="" />
+                <Picker.Item label="YES" value="YES" />
+                <Picker.Item label="NO" value="NO" />
+                <Picker.Item label="LIMITED" value="LIMITED" />
+              </Picker>
+
+              <Text style={styles.fieldLabel}>Availability PM</Text>
+              <Picker
+                selectedValue={newDriver.availabilityPM}
+                onValueChange={(value) => setNewDriver({ ...newDriver, availabilityPM: value })}
+                style={styles.picker}
+              >
+                <Picker.Item label="Select..." value="" />
+                <Picker.Item label="YES" value="YES" />
+                <Picker.Item label="NO" value="NO" />
+                <Picker.Item label="LIMITED" value="LIMITED" />
+              </Picker>
+
+              <TextInput
+                style={[styles.input, styles.multilineInput]}
+                placeholder="Special Equipment (e.g., Car Seats, Booster)"
+                placeholderTextColor="#999"
+                value={newDriver.specialEquipment}
+                onChangeText={(text) => setNewDriver({ ...newDriver, specialEquipment: text })}
+                multiline
+                numberOfLines={2}
+              />
+
+              {/* Emergency Contact Section */}
+              <Text style={styles.sectionTitle}>Emergency Contact</Text>
+              <TextInput
+                style={styles.input}
+                placeholder="Contact Name"
+                placeholderTextColor="#999"
+                value={newDriver.emergencyContact.name}
+                onChangeText={(text) => setNewDriver({
+                  ...newDriver,
+                  emergencyContact: { ...newDriver.emergencyContact, name: text }
+                })}
+              />
+              <TextInput
+                style={styles.input}
+                placeholder="Contact Phone"
+                placeholderTextColor="#999"
+                value={newDriver.emergencyContact.phone}
+                onChangeText={(text) => setNewDriver({
+                  ...newDriver,
+                  emergencyContact: { ...newDriver.emergencyContact, phone: text }
+                })}
+                keyboardType="phone-pad"
+              />
+              <TextInput
+                style={styles.input}
+                placeholder="Relationship (e.g., Spouse, Parent)"
+                placeholderTextColor="#999"
+                value={newDriver.emergencyContact.relationship}
+                onChangeText={(text) => setNewDriver({
+                  ...newDriver,
+                  emergencyContact: { ...newDriver.emergencyContact, relationship: text }
+                })}
+              />
+            </ScrollView>
             <View style={styles.modalActions}>
               <TouchableOpacity style={[styles.modalButton, styles.cancelButton]} onPress={() => setModalVisible(false)}>
                 <Text style={styles.modalButtonText}>Cancel</Text>
               </TouchableOpacity>
-              <TouchableOpacity style={[styles.modalButton, styles.submitButton]} onPress={handleAddDriver} disabled={isAdding}>
+              <TouchableOpacity style={[styles.modalButton, styles.submitButton]} onPress={handleSubmit} disabled={isAdding}>
                 {isAdding ? (
                   <ActivityIndicator color="#FFFFFF" />
                 ) : (
-                  <Text style={[styles.modalButtonText, styles.submitButtonText]}>Add Driver</Text>
+                  <Text style={[styles.modalButtonText, styles.submitButtonText]}>
+                    {modalMode === 'add' ? 'Add Driver' : 'Update Driver'}
+                  </Text>
                 )}
               </TouchableOpacity>
             </View>
@@ -255,6 +513,23 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '500',
   },
+  actionsRow: {
+    flexDirection: 'row',
+    gap: 8,
+  },
+  editButton: {
+    backgroundColor: '#E3F2FD',
+    paddingVertical: 6,
+    paddingHorizontal: 10,
+    borderRadius: 6,
+    borderColor: '#2196F3',
+    borderWidth: 1,
+  },
+  editButtonText: {
+    color: '#2196F3',
+    fontWeight: '500',
+    fontSize: 12,
+  },
   actionButton: {
     backgroundColor: '#F0F0F0',
     paddingVertical: 6,
@@ -280,10 +555,14 @@ const styles = StyleSheet.create({
   },
   modalContent: {
     width: '90%',
+    maxHeight: '80%',
     backgroundColor: '#FFFFFF',
     borderRadius: 12,
     padding: 24,
     alignItems: 'stretch',
+  },
+  scrollContainer: {
+    maxHeight: 400,
   },
   modalTitle: {
     fontSize: 20,
@@ -297,6 +576,29 @@ const styles = StyleSheet.create({
     padding: 12,
     marginBottom: 16,
     fontSize: 16,
+  },
+  multilineInput: {
+    minHeight: 60,
+    textAlignVertical: 'top',
+  },
+  sectionTitle: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: '#333',
+    marginTop: 16,
+    marginBottom: 12,
+  },
+  fieldLabel: {
+    fontSize: 14,
+    fontWeight: '500',
+    color: '#666',
+    marginBottom: 8,
+    marginTop: 8,
+  },
+  picker: {
+    backgroundColor: '#F5F5F5',
+    borderRadius: 8,
+    marginBottom: 16,
   },
   modalActions: {
     flexDirection: 'row',
