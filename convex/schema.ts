@@ -21,9 +21,28 @@ export default defineSchema({
     // Basic Info
     employeeId: v.string(),
     firstName: v.string(),
+    middleName: v.optional(v.string()), // NEW
     lastName: v.string(),
     email: v.string(),
     phone: v.string(),
+
+    // Address
+    address: v.optional(v.object({
+      street: v.string(),
+      street2: v.optional(v.string()),
+      city: v.string(),
+      state: v.string(),
+      zip: v.string(),
+    })),
+
+    // Compliance & ID
+    ssn: v.optional(v.string()),
+    itin: v.optional(v.string()),
+    fingerprintsOnFile: v.optional(v.boolean()),
+    fingerprintsVerified: v.optional(v.boolean()),
+    tbTestVerified: v.optional(v.boolean()),
+    taxiApplicationStatus: v.optional(v.string()),
+    mvrStatus: v.optional(v.string()),
 
     // NEW: CSV Import Fields - Driver Details
     primaryLanguage: v.optional(v.string()), // Driver's primary language (e.g., "Portuguese", "English")
@@ -107,10 +126,30 @@ export default defineSchema({
     classEndTime: v.optional(v.string()), // School end time for PM routes (e.g., "3:20 PM")
     rideType: v.optional(v.string()), // "SOLO" or "SHARED"
     pickupNotes: v.optional(v.string()), // Special instructions from master sheet
+    notes: v.optional(v.string()), // General notes
     homeLanguage: v.optional(v.string()), // Primary language at home (e.g., "Spanish", "Portuguese")
+
+    // School Staff
+    teacher: v.optional(v.object({
+      firstName: v.string(),
+      lastName: v.string(),
+      phone: v.optional(v.string()),
+    })),
+    caseManager: v.optional(v.object({
+      firstName: v.string(),
+      lastName: v.string(),
+    })),
+
+    // Medical & Safety
+    seizureProtocol: v.optional(v.boolean()),
+    boosterSeat: v.optional(v.boolean()),
 
     // NEW: For badge-based carpool auto-pairing
     assignedBadgeId: v.optional(v.string()), // Badge ID for carpool assignments (e.g., "BADGE023")
+
+    // Steady Pairings (Default Drivers)
+    defaultAmDriverId: v.optional(v.id("drivers")),
+    defaultPmDriverId: v.optional(v.id("drivers")),
 
     // Addresses (driver app needs)
     homeAddress: v.optional(v.object({
@@ -154,6 +193,16 @@ export default defineSchema({
 
     // Parent References
     parentIds: v.optional(v.array(v.string())),
+    parent1: v.optional(v.object({
+      firstName: v.string(),
+      lastName: v.string(),
+      phone: v.string(),
+    })),
+    parent2: v.optional(v.object({
+      firstName: v.string(),
+      lastName: v.string(),
+      phone: v.string(),
+    })),
 
     // Status
     active: v.boolean(),
