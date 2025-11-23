@@ -45,6 +45,10 @@ export const sendRouteNotification = action({
     },
 });
 
+import { getMessage } from "./localization";
+
+// ... existing code ...
+
 export const sendReminder = action({
     args: {
         routeId: v.id("routes"),
@@ -67,10 +71,13 @@ export const sendReminder = action({
         }
 
         // 3. Send notification
+        const title = getMessage(driver.primaryLanguage, "reminderTitle");
+        const body = getMessage(driver.primaryLanguage, "reminderBody", route.child?.firstName || "Child", args.minutesBefore);
+
         await ctx.runAction(internal.notifications.sendRouteNotification, {
             expoPushToken: driver.expoPushToken,
-            title: "Upcoming Pickup ⏰",
-            body: `Reminder: Pickup for ${route.child?.firstName} in ${args.minutesBefore} minutes.`,
+            title,
+            body,
             data: { routeId: args.routeId, type: "reminder" },
         });
     },

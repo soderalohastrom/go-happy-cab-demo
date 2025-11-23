@@ -1,4 +1,4 @@
-import { query, internalMutation, mutation, action } from "./_generated/server";
+import { query, internalMutation, mutation, action, internalQuery } from "./_generated/server";
 import { v } from "convex/values";
 import { internal } from "./_generated/api";
 
@@ -204,6 +204,13 @@ export const get = query({
   args: { id: v.id("drivers") },
   handler: async (ctx, args) => {
     return await ctx.db.get(args.id);
+  },
+});
+
+export const getById = internalQuery({
+  args: { driverId: v.id("drivers") },
+  handler: async (ctx, args) => {
+    return await ctx.db.get(args.driverId);
   },
 });
 

@@ -1,6 +1,7 @@
 import { query, mutation } from "./_generated/server";
 import { v } from "convex/values";
 import { internal } from "./_generated/api";
+import { getMessage } from "./localization";
 
 // Helper function to create audit log entries matching unified schema
 const createAuditLog = (action: string, resource: string, resourceId: string, details: any, userId?: string) => ({
@@ -330,10 +331,13 @@ export const create = mutation({
 
     // SEND PUSH NOTIFICATION
     if (driver && driver.expoPushToken) {
+      const title = getMessage(driver.primaryLanguage, "newRouteTitle");
+      const body = getMessage(driver.primaryLanguage, "newRouteBody", args.period, child?.firstName || "Child", args.date);
+
       await ctx.scheduler.runAfter(0, internal.notifications.sendRouteNotification, {
         expoPushToken: driver.expoPushToken,
-        title: "New Route Assigned 🚸",
-        body: `You have a new ${args.period} route for ${child?.firstName} on ${args.date}`,
+        title,
+        body,
         data: { routeId: assignmentId },
       });
     }
