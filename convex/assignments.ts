@@ -30,6 +30,28 @@ const createAuditLog = (action: string, resource: string, resourceId: string, de
   },
 });
 
+// Helper to parse date and time into a timestamp
+const getScheduledTimestamp = (dateStr: string, timeStr: string): number => {
+  try {
+    // timeStr format: "8:30 AM" or "14:30"
+    const [time, modifier] = timeStr.split(' ');
+    let [hours, minutes] = time.split(':').map(Number);
+
+    if (modifier === 'PM' && hours < 12) hours += 12;
+    if (modifier === 'AM' && hours === 12) hours = 0;
+
+    const date = new Date(dateStr);
+    date.setHours(hours, minutes, 0, 0);
+    return date.getTime();
+  } catch (e) {
+    console.error("Error parsing time:", e);
+    return 0;
+  }
+};
+
+// Helper to parse date and time into a timestamp
+
+
 // Get assignments for a specific date and period
 export const getForDatePeriod = query({
   args: {
@@ -225,6 +247,8 @@ export const create = mutation({
     driverId: v.id("drivers"),
     status: v.string(),
     user: v.optional(v.string()),
+    scheduledTime: v.optional(v.string()), // e.g. "8:30 AM"
+    reminderMinutes: v.optional(v.number()),
   },
   handler: async (ctx, args) => {
     // Check for existing assignment for the child
@@ -262,10 +286,11 @@ export const create = mutation({
       type: args.period === "AM" ? "pickup" : "dropoff",
       childId: args.childId,
       driverId: args.driverId,
-      status: args.status,
+      status: args.status as any, // Cast to any to satisfy union type (validated by schema at runtime)
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
       createdBy: args.user,
+      scheduledTime: args.scheduledTime,
     });
 
     // Create audit log entry
@@ -311,6 +336,30 @@ export const create = mutation({
         body: `You have a new ${args.period} route for ${child?.firstName} on ${args.date}`,
         data: { routeId: assignmentId },
       });
+    }
+
+    // Schedule Reminder if requested and time is available
+    // Schedule Reminder if requested and time is available
+    if (args.reminderMinutes && args.scheduledTime) {
+      const pickupTime = getScheduledTimestamp(args.date, args.scheduledTime);
+      if (pickupTime > 0) {
+        const reminderTime = pickupTime - (args.reminderMinutes * 60 * 1000);
+        const now = Date.now();
+
+        if (reminderTime > now) {
+          const reminderId = await ctx.scheduler.runAt(
+            reminderTime,
+            internal.notifications.sendReminder,
+            {
+              routeId: assignmentId,
+              driverId: args.driverId,
+              minutesBefore: args.reminderMinutes,
+            }
+          );
+          // Update route with reminderId
+          await ctx.db.patch(assignmentId, { reminderId });
+        }
+      }
     }
 
     return assignmentId;
@@ -414,6 +463,15 @@ export const remove = mutation({
 
     // Delete the assignment
     await ctx.db.delete(args.id);
+
+    // Cancel scheduled reminder if exists
+    if (assignment.reminderId) {
+      try {
+        await ctx.scheduler.cancel(assignment.reminderId);
+      } catch (e) {
+        // Ignore
+      }
+    }
 
     // Create audit log entry
     await ctx.db.insert("auditLogs", createAuditLog(
@@ -597,5 +655,58 @@ export const copyFromDate = mutation({
     );
 
     return newAssignmentIds.filter((id) => id !== null);
+  },
+});
+
+
+export const scheduleReminder = mutation({
+  args: {
+    routeId: v.id("routes"),
+    minutesBefore: v.number(),
+  },
+  handler: async (ctx, args) => {
+    const route = await ctx.db.get(args.routeId);
+    if (!route) throw new Error("Route not found");
+
+    if (!route.scheduledTime) {
+      console.log("Cannot schedule reminder: No scheduled time set for route");
+      return;
+    }
+
+    const pickupTime = getScheduledTimestamp(route.date, route.scheduledTime);
+    if (pickupTime === 0) return;
+
+    const reminderTime = pickupTime - (args.minutesBefore * 60 * 1000);
+    const now = Date.now();
+
+    if (reminderTime <= now) {
+      console.log("Reminder time is in the past, skipping scheduling");
+      return;
+    }
+
+    // Cancel existing reminder if any
+    if (route.reminderId) {
+      try {
+        await ctx.scheduler.cancel(route.reminderId);
+      } catch (e) {
+        // Ignore if already executed or not found
+      }
+    }
+
+    // Schedule new reminder
+    const reminderId = await ctx.scheduler.runAt(
+      reminderTime,
+      internal.notifications.sendReminder,
+      {
+        routeId: args.routeId,
+        driverId: route.driverId,
+        minutesBefore: args.minutesBefore,
+      }
+    );
+
+    // Update route with reminderId
+    await ctx.db.patch(args.routeId, { reminderId });
+
+    return reminderId;
   },
 });

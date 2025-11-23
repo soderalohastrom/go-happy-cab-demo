@@ -511,6 +511,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     gap: 12,
     marginBottom: 16,
+    marginHorizontal: 16,
   },
   exportButton: {
     flex: 1,

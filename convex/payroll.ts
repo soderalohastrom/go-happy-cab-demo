@@ -57,8 +57,15 @@ export const getPayrollReport = query({
         const noShowTrips = driverRoutes.filter(
           (r) => r.status === "no_show"
         ).length;
+        // All cancel types
         const cancelledTrips = driverRoutes.filter(
           (r) => r.status === "cancelled"
+        ).length;
+        const lateCancelTrips = driverRoutes.filter(
+          (r) => r.status === "late_cancel"
+        ).length;
+        const naTrips = driverRoutes.filter(
+          (r) => r.status === "na"
         ).length;
 
         // Count by period
@@ -68,8 +75,12 @@ export const getPayrollReport = query({
         // Calculate total pay
         const completedPay = completedTrips * baseRate;
         const noShowPay = noShowTrips * (baseRate - noShowDeduction);
-        const cancelledPay = cancelledTrips * (baseRate - preCancelDeduction);
-        const totalPay = completedPay + noShowPay + cancelledPay;
+        // All cancellations are $0
+        const cancelledPay = 0;
+        const lateCancelPay = 0;
+        const naPay = 0;
+
+        const totalPay = completedPay + noShowPay + cancelledPay + lateCancelPay + naPay;
 
         return {
           driverId: driver._id,
@@ -84,15 +95,19 @@ export const getPayrollReport = query({
           completedTrips,
           noShowTrips,
           cancelledTrips,
+          lateCancelTrips, // NEW
+          naTrips,         // NEW
           totalPay,
           // Include breakdown for transparency
           payBreakdown: {
             completedPay,
             noShowPay,
             cancelledPay,
+            lateCancelPay, // NEW
+            naPay,         // NEW
             baseRate,
             noShowRate: baseRate - noShowDeduction,
-            cancelledRate: baseRate - preCancelDeduction,
+            cancelledRate: 0, // Changed to 0
           },
         };
       })
@@ -108,6 +123,8 @@ export const getPayrollReport = query({
         completedTrips: acc.completedTrips + driver.completedTrips,
         noShowTrips: acc.noShowTrips + driver.noShowTrips,
         cancelledTrips: acc.cancelledTrips + driver.cancelledTrips,
+        lateCancelTrips: (acc.lateCancelTrips || 0) + driver.lateCancelTrips,
+        naTrips: (acc.naTrips || 0) + driver.naTrips,
         totalPay: acc.totalPay + driver.totalPay,
       }),
       {
@@ -115,6 +132,8 @@ export const getPayrollReport = query({
         completedTrips: 0,
         noShowTrips: 0,
         cancelledTrips: 0,
+        lateCancelTrips: 0,
+        naTrips: 0,
         totalPay: 0,
       }
     );

@@ -310,6 +310,9 @@ export default defineSchema({
       v.literal("in_progress"),
       v.literal("completed"),
       v.literal("cancelled"),
+      v.literal("no_show"),
+      v.literal("late_cancel"),
+      v.literal("na"),
       v.literal("emergency_stop")
     ),
 
@@ -338,6 +341,7 @@ export default defineSchema({
     createdAt: v.string(),
     createdBy: v.optional(v.string()), // dispatcher or system
     updatedAt: v.string(),
+    reminderId: v.optional(v.id("_scheduled_functions")), // For scheduled notifications
   })
     .index("by_driver_date", ["driverId", "date"])
     .index("by_date_period", ["date", "period"]) // DISPATCH PRIMARY INDEX

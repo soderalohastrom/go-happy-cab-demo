@@ -2,6 +2,7 @@
 import { action } from "./_generated/server";
 import { v } from "convex/values";
 import { Expo } from "expo-server-sdk";
+import { internal } from "./_generated/api";
 
 const expo = new Expo();
 
@@ -18,7 +19,7 @@ export const sendRouteNotification = action({
     },
     handler: async (ctx, args) => {
         if (!Expo.isExpoPushToken(args.expoPushToken)) {
-            console.error(`Push token ${args.expoPushToken} is not a valid Expo push token`);
+            console.error(`Invalid Expo Push Token: ${args.expoPushToken}`);
             return;
         }
 
@@ -34,22 +35,43 @@ export const sendRouteNotification = action({
 
         try {
             const chunks = expo.chunkPushNotifications(messages);
-            const tickets = [];
-
             for (const chunk of chunks) {
-                try {
-                    const ticketChunk = await expo.sendPushNotificationsAsync(chunk);
-                    tickets.push(...ticketChunk);
-                    console.log("Notification sent:", ticketChunk);
-                } catch (error) {
-                    console.error("Error sending notification chunk:", error);
-                }
+                await expo.sendPushNotificationsAsync(chunk);
             }
-
-            return tickets;
+            console.log("✅ Notification sent successfully");
         } catch (error) {
-            console.error("Error sending push notification:", error);
-            throw new Error("Failed to send push notification");
+            console.error("❌ Error sending notification:", error);
         }
+    },
+});
+
+export const sendReminder = action({
+    args: {
+        routeId: v.id("routes"),
+        driverId: v.id("drivers"),
+        minutesBefore: v.number(),
+    },
+    handler: async (ctx, args) => {
+        // 1. Get driver info (we need the token)
+        const driver = await ctx.runQuery(internal.drivers.getById, { driverId: args.driverId });
+        if (!driver || !driver.expoPushToken) {
+            console.log("⚠️ Driver has no push token, skipping reminder.");
+            return;
+        }
+
+        // 2. Get route info
+        const route = await ctx.runQuery(internal.routes.getById, { routeId: args.routeId });
+        if (!route || route.status !== "scheduled") {
+            console.log("⚠️ Route not scheduled or not found, skipping reminder.");
+            return;
+        }
+
+        // 3. Send notification
+        await ctx.runAction(internal.notifications.sendRouteNotification, {
+            expoPushToken: driver.expoPushToken,
+            title: "Upcoming Pickup ⏰",
+            body: `Reminder: Pickup for ${route.child?.firstName} in ${args.minutesBefore} minutes.`,
+            data: { routeId: args.routeId, type: "reminder" },
+        });
     },
 });
