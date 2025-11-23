@@ -1,4 +1,4 @@
-import { query, internalMutation, action } from "./_generated/server";
+import { query, internalMutation, mutation, action } from "./_generated/server";
 import { v } from "convex/values";
 import { internal } from "./_generated/api";
 
@@ -10,7 +10,7 @@ export const list = query({
       .query("drivers")
       .withIndex("by_active", (q) => q.eq("active", true))
       .collect();
-    
+
     // Sort by last name for unified schema
     return drivers.sort((a, b) => a.lastName.localeCompare(b.lastName));
   },
@@ -220,3 +220,31 @@ export const getByClerkId = query({
 
 // NOTE: create/update temporarily disabled for unified schema migration
 // These will be re-implemented to match the full drivers schema (firstName, lastName, employeeId, etc.)
+
+/**
+ * Updates the Expo Push Token for a driver.
+ * Used by the Driver App to register for push notifications.
+ */
+export const updatePushToken = mutation({
+  args: {
+    clerkId: v.string(),
+    expoPushToken: v.string(),
+  },
+  handler: async (ctx, args) => {
+    const driver = await ctx.db
+      .query("drivers")
+      .withIndex("by_clerk_id", (q) => q.eq("clerkId", args.clerkId))
+      .first();
+
+    if (!driver) {
+      throw new Error("Driver not found");
+    }
+
+    await ctx.db.patch(driver._id, {
+      expoPushToken: args.expoPushToken,
+      updatedAt: new Date().toISOString(),
+    });
+
+    return driver._id;
+  },
+});

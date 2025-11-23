@@ -28,6 +28,49 @@ interface ExportResult {
   };
 }
 
+interface AssignmentDriver {
+  driverId: string;
+  driverName: string;
+  children: Array<{
+    childId: string;
+    childName: string;
+    grade: string;
+    schoolName: string;
+  }>;
+}
+
+interface AssignmentExportResult {
+  url: string;
+  spreadsheetId: string;
+  summary: {
+    totalDrivers: number;
+    totalAssignments: number;
+  };
+}
+
+interface DistrictData {
+  districtId: string;
+  districtName: string;
+  schools: Array<{
+    schoolId: string;
+    schoolName: string;
+    children: Array<{
+      childId: string;
+      childName: string;
+      grade: string;
+    }>;
+  }>;
+}
+
+interface DistrictExportResult {
+  url: string;
+  spreadsheetId: string;
+  summary: {
+    totalDistricts: number;
+    totalChildren: number;
+  };
+}
+
 /**
  * Hook for exporting payroll data to Google Sheets
  *
@@ -51,6 +94,8 @@ export const useGoogleSheetsExport = () => {
   const [exportError, setExportError] = useState<string | null>(null);
 
   const exportToSheetsAction = useAction(api.googleSheets.exportPayrollToSheets);
+  const exportAssignmentsAction = useAction(api.googleSheets.exportAssignmentsToSheets);
+  const exportDistrictsAction = useAction(api.googleSheets.exportDistrictsToSheets);
 
   const exportToNewSheet = async (
     drivers: PayrollDriver[],
@@ -95,8 +140,86 @@ export const useGoogleSheetsExport = () => {
     }
   };
 
+  const exportAssignmentsToNewSheet = async (
+    drivers: AssignmentDriver[],
+    selectedDate: string,
+    selectedPeriod: "AM" | "PM"
+  ): Promise<AssignmentExportResult | null> => {
+    setIsExporting(true);
+    setExportError(null);
+
+    try {
+      const result = await exportAssignmentsAction({
+        assignmentData: drivers,
+        selectedDate,
+        selectedPeriod,
+      });
+
+      if (result.success) {
+        await Linking.openURL(result.spreadsheetUrl);
+
+        return {
+          url: result.spreadsheetUrl,
+          spreadsheetId: result.spreadsheetId,
+          summary: {
+            totalDrivers: result.totalDrivers,
+            totalAssignments: result.totalAssignments,
+          },
+        };
+      }
+
+      return null;
+    } catch (error: any) {
+      console.error('Google Sheets assignments export error:', error);
+      setExportError(error.message || 'Unknown error occurred');
+      return null;
+    } finally {
+      setIsExporting(false);
+    }
+  };
+
+  const exportDistrictsToNewSheet = async (
+    districts: DistrictData[],
+    selectedDate: string,
+    selectedPeriod: "AM" | "PM"
+  ): Promise<DistrictExportResult | null> => {
+    setIsExporting(true);
+    setExportError(null);
+
+    try {
+      const result = await exportDistrictsAction({
+        districtData: districts,
+        selectedDate,
+        selectedPeriod,
+      });
+
+      if (result.success) {
+        await Linking.openURL(result.spreadsheetUrl);
+
+        return {
+          url: result.spreadsheetUrl,
+          spreadsheetId: result.spreadsheetId,
+          summary: {
+            totalDistricts: result.totalDistricts,
+            totalChildren: result.totalChildren,
+          },
+        };
+      }
+
+      return null;
+    } catch (error: any) {
+      console.error('Google Sheets districts export error:', error);
+      setExportError(error.message || 'Unknown error occurred');
+      return null;
+    } finally {
+      setIsExporting(false);
+    }
+  };
+
   return {
     exportToNewSheet,
+    exportAssignmentsToNewSheet,
+    exportDistrictsToNewSheet,
     isExporting,
     exportError,
     clearError: () => setExportError(null),

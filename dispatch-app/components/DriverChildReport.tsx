@@ -6,8 +6,11 @@
  */
 
 import React, { useState } from 'react';
-import { View, Text, FlatList, StyleSheet, TouchableOpacity, ActivityIndicator } from 'react-native';
+import { View, Text, FlatList, StyleSheet, TouchableOpacity, ActivityIndicator, Alert } from 'react-native';
 import { useDriverChildReport, getTodayString } from '../hooks/useConvexRoutes';
+import { exportCSV } from '../utils/exportAssignments';
+import { useGoogleSheetsExport } from '../hooks/useGoogleSheetsExport';
+import { FontAwesome } from '@expo/vector-icons';
 
 type Period = 'AM' | 'PM';
 
@@ -15,8 +18,51 @@ export default function DriverChildReport() {
   const today = getTodayString();
   const [selectedDate, setSelectedDate] = useState(today);
   const [selectedPeriod, setSelectedPeriod] = useState<Period>('AM');
+  const [isExporting, setIsExporting] = useState(false);
 
   const reportData = useDriverChildReport(selectedDate, selectedPeriod);
+  const { exportAssignmentsToNewSheet, isExporting: isExportingSheets, exportError } = useGoogleSheetsExport();
+
+  // CSV Export Handler
+  const handleExportCSV = async () => {
+    if (!reportData || reportData.length === 0) {
+      Alert.alert('No Data', 'No assignments to export for this date/period');
+      return;
+    }
+
+    setIsExporting(true);
+    const result = await exportCSV({
+      selectedDate,
+      selectedPeriod,
+      drivers: reportData,
+    });
+    setIsExporting(false);
+
+    if (result.success) {
+      Alert.alert('Export Successful', 'CSV file has been shared');
+    } else {
+      Alert.alert('Export Failed', result.error || 'Unknown error occurred');
+    }
+  };
+
+  // Google Sheets Export Handler
+  const handleExportToGoogleSheets = async () => {
+    if (!reportData || reportData.length === 0) {
+      Alert.alert('No Data', 'No assignments to export for this date/period');
+      return;
+    }
+
+    const result = await exportAssignmentsToNewSheet(reportData, selectedDate, selectedPeriod);
+
+    if (result) {
+      Alert.alert(
+        'Export Successful',
+        `Exported ${result.summary.totalDrivers} drivers with ${result.summary.totalAssignments} assignments to Google Sheets`
+      );
+    } else if (exportError) {
+      Alert.alert('Export Failed', exportError);
+    }
+  };
 
   // Loading state
   if (reportData === undefined) {
@@ -56,6 +102,47 @@ export default function DriverChildReport() {
         onDateChange={setSelectedDate}
         onPeriodChange={setSelectedPeriod}
       />
+
+      {/* Export Buttons */}
+      <View style={styles.exportButtons}>
+        <TouchableOpacity
+          style={[styles.exportButton, styles.csvButton, isExporting && styles.exportButtonDisabled]}
+          onPress={handleExportCSV}
+          disabled={isExporting || !reportData || reportData.length === 0}
+        >
+          <FontAwesome name="file-excel-o" size={16} color="white" />
+          <Text style={styles.exportButtonText}>CSV</Text>
+        </TouchableOpacity>
+
+        <TouchableOpacity
+          style={[
+            styles.exportButton,
+            styles.sheetsButton,
+            (isExportingSheets || !reportData || reportData.length === 0) && styles.exportButtonDisabled
+          ]}
+          onPress={handleExportToGoogleSheets}
+          disabled={isExportingSheets || !reportData || reportData.length === 0}
+        >
+          {isExportingSheets ? (
+            <ActivityIndicator color="#FFF" size="small" />
+          ) : (
+            <>
+              <FontAwesome name="google" size={16} color="white" />
+              <View>
+                <Text style={styles.exportButtonText}>Google Sheets</Text>
+                <Text style={styles.exportButtonSubtext}>Formatted</Text>
+              </View>
+            </>
+          )}
+        </TouchableOpacity>
+      </View>
+
+      {/* Error Display */}
+      {exportError && (
+        <View style={styles.errorContainer}>
+          <Text style={styles.errorText}>⚠️ {exportError}</Text>
+        </View>
+      )}
 
       <FlatList
         data={reportData}
@@ -298,5 +385,49 @@ const styles = StyleSheet.create({
     fontWeight: '500',
     color: '#999',
     textAlign: 'right',
+  },
+  exportButtons: {
+    flexDirection: 'row',
+    gap: 12,
+    marginBottom: 16,
+  },
+  exportButton: {
+    flex: 1,
+    flexDirection: 'row',
+    padding: 14,
+    borderRadius: 8,
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+  },
+  csvButton: {
+    backgroundColor: '#6B7280',
+  },
+  sheetsButton: {
+    backgroundColor: '#0F9D58', // Google green
+  },
+  exportButtonDisabled: {
+    backgroundColor: '#ccc',
+    opacity: 0.6,
+  },
+  exportButtonText: {
+    color: 'white',
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  exportButtonSubtext: {
+    color: 'white',
+    fontSize: 11,
+    marginTop: 2,
+  },
+  errorContainer: {
+    backgroundColor: '#FEE',
+    padding: 12,
+    borderRadius: 8,
+    marginBottom: 16,
+  },
+  errorText: {
+    color: '#C00',
+    fontSize: 14,
   },
 });

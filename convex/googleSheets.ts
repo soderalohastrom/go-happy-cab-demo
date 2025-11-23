@@ -277,3 +277,323 @@ export const exportPayrollToSheets = action({
       }
     },
   });
+
+/**
+ * Export assignments to Google Sheets
+ *
+ * Creates a single-sheet spreadsheet showing driver-child pairings for a specific date/period.
+ *
+ * Uses Google Service Account authentication (no user OAuth required).
+ * Spreadsheets are created in the shared "Go Happy Cab Payroll" folder.
+ */
+export const exportAssignmentsToSheets = action({
+  args: {
+    assignmentData: v.array(v.object({
+      driverId: v.string(),
+      driverName: v.string(),
+      children: v.array(v.object({
+        childId: v.string(),
+        childName: v.string(),
+        grade: v.string(),
+        schoolName: v.string(),
+      })),
+    })),
+    selectedDate: v.string(),
+    selectedPeriod: v.union(v.literal("AM"), v.literal("PM")),
+  },
+  handler: async (ctx, args) => {
+    try {
+      // Retrieve service account credentials from environment
+      const serviceAccountEmail = process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL;
+      const serviceAccountKey = process.env.GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY;
+      const folderId = process.env.GOOGLE_PAYROLL_FOLDER_ID;
+
+      if (!serviceAccountEmail || !serviceAccountKey || !folderId) {
+        throw new Error('Missing Google service account environment variables');
+      }
+
+      // Initialize Google APIs with service account
+      let formattedKey = serviceAccountKey
+        .replace(/\\n/g, '\n')
+        .replace(/-----BEGIN\nPRIVATE\nKEY-----/g, '-----BEGIN PRIVATE KEY-----')
+        .replace(/-----END\nPRIVATE\nKEY-----/g, '-----END PRIVATE KEY-----');
+
+      const auth = new google.auth.GoogleAuth({
+        credentials: {
+          client_email: serviceAccountEmail,
+          private_key: formattedKey,
+        },
+        scopes: [
+          'https://www.googleapis.com/auth/spreadsheets',
+          'https://www.googleapis.com/auth/drive'
+        ]
+      });
+
+      const sheets = google.sheets({ version: 'v4', auth });
+      const drive = google.drive({ version: 'v3', auth });
+
+      const title = `Assignments - ${args.selectedDate} ${args.selectedPeriod}`;
+
+      // Create spreadsheet in Shared Drive
+      const createResponse = await drive.files.create({
+        requestBody: {
+          name: title,
+          parents: [folderId],
+          mimeType: 'application/vnd.google-apps.spreadsheet',
+        },
+        fields: 'id',
+        supportsAllDrives: true
+      });
+
+      const spreadsheetId = createResponse.data.id!;
+
+      // Rename default sheet
+      await sheets.spreadsheets.batchUpdate({
+        spreadsheetId,
+        requestBody: {
+          requests: [
+            {
+              updateSheetProperties: {
+                properties: {
+                  sheetId: 0,
+                  title: 'Assignments',
+                  gridProperties: { frozenRowCount: 1 }
+                },
+                fields: 'title,gridProperties.frozenRowCount'
+              }
+            }
+          ]
+        }
+      });
+
+      // Prepare data - flatten driver-child pairings
+      const rows = [
+        ['Driver Name', 'Driver ID', 'Child Name', 'Child ID', 'Grade', 'School'],
+        ...args.assignmentData.flatMap(driver =>
+          driver.children.map(child => [
+            driver.driverName,
+            driver.driverId,
+            child.childName,
+            child.childId,
+            child.grade,
+            child.schoolName
+          ])
+        )
+      ];
+
+      // Write data
+      await sheets.spreadsheets.values.update({
+        spreadsheetId,
+        range: 'Assignments!A1',
+        valueInputOption: 'USER_ENTERED',
+        requestBody: { values: rows }
+      });
+
+      // Apply formatting
+      await sheets.spreadsheets.batchUpdate({
+        spreadsheetId,
+        requestBody: {
+          requests: [
+            {
+              autoResizeDimensions: {
+                dimensions: { sheetId: 0, dimension: 'COLUMNS', startIndex: 0, endIndex: 6 }
+              }
+            },
+            {
+              repeatCell: {
+                range: { sheetId: 0, startRowIndex: 0, endRowIndex: 1 },
+                cell: {
+                  userEnteredFormat: {
+                    textFormat: { bold: true },
+                    backgroundColor: { red: 0.85, green: 0.85, blue: 0.85 }
+                  }
+                },
+                fields: 'userEnteredFormat(textFormat,backgroundColor)'
+              }
+            }
+          ]
+        }
+      });
+
+      const spreadsheetUrl = `https://docs.google.com/spreadsheets/d/${spreadsheetId}`;
+
+      const totalAssignments = args.assignmentData.reduce((sum, d) => sum + d.children.length, 0);
+
+      return {
+        success: true,
+        spreadsheetId,
+        spreadsheetUrl,
+        totalDrivers: args.assignmentData.length,
+        totalAssignments,
+      };
+    } catch (error: any) {
+      console.error('Google Sheets assignment export failed:', error);
+      throw new Error(`Failed to export assignments: ${error.message}`);
+    }
+  },
+});
+
+/**
+ * Export districts to Google Sheets
+ *
+ * Creates a single-sheet spreadsheet showing district → school → children hierarchy
+ * for a specific date/period.
+ *
+ * Uses Google Service Account authentication (no user OAuth required).
+ * Spreadsheets are created in the shared "Go Happy Cab Payroll" folder.
+ */
+export const exportDistrictsToSheets = action({
+  args: {
+    districtData: v.array(v.object({
+      districtId: v.string(),
+      districtName: v.string(),
+      schools: v.array(v.object({
+        schoolId: v.string(),
+        schoolName: v.string(),
+        children: v.array(v.object({
+          childId: v.string(),
+          childName: v.string(),
+          grade: v.string(),
+        })),
+      })),
+    })),
+    selectedDate: v.string(),
+    selectedPeriod: v.union(v.literal("AM"), v.literal("PM")),
+  },
+  handler: async (ctx, args) => {
+    try {
+      // Retrieve service account credentials from environment
+      const serviceAccountEmail = process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL;
+      const serviceAccountKey = process.env.GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY;
+      const folderId = process.env.GOOGLE_PAYROLL_FOLDER_ID;
+
+      if (!serviceAccountEmail || !serviceAccountKey || !folderId) {
+        throw new Error('Missing Google service account environment variables');
+      }
+
+      // Initialize Google APIs with service account
+      let formattedKey = serviceAccountKey
+        .replace(/\\n/g, '\n')
+        .replace(/-----BEGIN\nPRIVATE\nKEY-----/g, '-----BEGIN PRIVATE KEY-----')
+        .replace(/-----END\nPRIVATE\nKEY-----/g, '-----END PRIVATE KEY-----');
+
+      const auth = new google.auth.GoogleAuth({
+        credentials: {
+          client_email: serviceAccountEmail,
+          private_key: formattedKey,
+        },
+        scopes: [
+          'https://www.googleapis.com/auth/spreadsheets',
+          'https://www.googleapis.com/auth/drive'
+        ]
+      });
+
+      const sheets = google.sheets({ version: 'v4', auth });
+      const drive = google.drive({ version: 'v3', auth });
+
+      const title = `Districts - ${args.selectedDate} ${args.selectedPeriod}`;
+
+      // Create spreadsheet in Shared Drive
+      const createResponse = await drive.files.create({
+        requestBody: {
+          name: title,
+          parents: [folderId],
+          mimeType: 'application/vnd.google-apps.spreadsheet',
+        },
+        fields: 'id',
+        supportsAllDrives: true
+      });
+
+      const spreadsheetId = createResponse.data.id!;
+
+      // Rename default sheet
+      await sheets.spreadsheets.batchUpdate({
+        spreadsheetId,
+        requestBody: {
+          requests: [
+            {
+              updateSheetProperties: {
+                properties: {
+                  sheetId: 0,
+                  title: 'Districts',
+                  gridProperties: { frozenRowCount: 1 }
+                },
+                fields: 'title,gridProperties.frozenRowCount'
+              }
+            }
+          ]
+        }
+      });
+
+      // Prepare data - flatten district → school → children hierarchy
+      const rows = [
+        ['District Name', 'District ID', 'School Name', 'School ID', 'Child Name', 'Child ID', 'Grade'],
+        ...args.districtData.flatMap(district =>
+          district.schools.flatMap(school =>
+            school.children.map(child => [
+              district.districtName,
+              district.districtId,
+              school.schoolName,
+              school.schoolId,
+              child.childName,
+              child.childId,
+              child.grade
+            ])
+          )
+        )
+      ];
+
+      // Write data
+      await sheets.spreadsheets.values.update({
+        spreadsheetId,
+        range: 'Districts!A1',
+        valueInputOption: 'USER_ENTERED',
+        requestBody: { values: rows }
+      });
+
+      // Apply formatting
+      await sheets.spreadsheets.batchUpdate({
+        spreadsheetId,
+        requestBody: {
+          requests: [
+            {
+              autoResizeDimensions: {
+                dimensions: { sheetId: 0, dimension: 'COLUMNS', startIndex: 0, endIndex: 7 }
+              }
+            },
+            {
+              repeatCell: {
+                range: { sheetId: 0, startRowIndex: 0, endRowIndex: 1 },
+                cell: {
+                  userEnteredFormat: {
+                    textFormat: { bold: true },
+                    backgroundColor: { red: 0.85, green: 0.85, blue: 0.85 }
+                  }
+                },
+                fields: 'userEnteredFormat(textFormat,backgroundColor)'
+              }
+            }
+          ]
+        }
+      });
+
+      const spreadsheetUrl = `https://docs.google.com/spreadsheets/d/${spreadsheetId}`;
+
+      const totalChildren = args.districtData.reduce(
+        (sum, d) => sum + d.schools.reduce((s, school) => s + school.children.length, 0),
+        0
+      );
+
+      return {
+        success: true,
+        spreadsheetId,
+        spreadsheetUrl,
+        totalDistricts: args.districtData.length,
+        totalChildren,
+      };
+    } catch (error: any) {
+      console.error('Google Sheets district export failed:', error);
+      throw new Error(`Failed to export districts: ${error.message}`);
+    }
+  },
+});

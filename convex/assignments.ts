@@ -1,5 +1,6 @@
 import { query, mutation } from "./_generated/server";
 import { v } from "convex/values";
+import { internal } from "./_generated/api";
 
 // Helper function to create audit log entries matching unified schema
 const createAuditLog = (action: string, resource: string, resourceId: string, details: any, userId?: string) => ({
@@ -8,9 +9,9 @@ const createAuditLog = (action: string, resource: string, resourceId: string, de
   action,
   resource,
   resourceId,
-  method: action === "created" ? "CREATE" as const : 
-          action === "deleted" ? "DELETE" as const : 
-          action === "updated" ? "UPDATE" as const : "CREATE" as const,
+  method: action === "created" ? "CREATE" as const :
+    action === "deleted" ? "DELETE" as const :
+      action === "updated" ? "UPDATE" as const : "CREATE" as const,
   category: "data_modification" as const,
   severity: "info" as const,
   userId,
@@ -70,12 +71,12 @@ export const getForDate = query({
       .query("routes")
       .withIndex("by_date_period", (q) => q.eq("date", args.date).eq("period", "AM"))
       .collect();
-    
+
     const pmRoutes = await ctx.db
       .query("routes")
       .withIndex("by_date_period", (q) => q.eq("date", args.date).eq("period", "PM"))
       .collect();
-    
+
     const assignments = [...amRoutes, ...pmRoutes];
 
     // Enrich with child and driver details
@@ -289,9 +290,9 @@ export const create = mutation({
       routeId: assignmentId,
       childId: args.childId,
       driverId: args.driverId,
-      eventData: { 
-        date: args.date, 
-        period: args.period, 
+      eventData: {
+        date: args.date,
+        period: args.period,
         status: args.status,
         childName: `${child?.firstName || ""} ${child?.lastName || "Unknown"}`.trim(),
         driverName: `${driver?.firstName || ""} ${driver?.lastName || "Unknown"}`.trim(),
@@ -301,6 +302,16 @@ export const create = mutation({
       timestamp: new Date().toISOString(),
       createdAt: new Date().toISOString(),
     });
+
+    // SEND PUSH NOTIFICATION
+    if (driver && driver.expoPushToken) {
+      await ctx.scheduler.runAfter(0, internal.notifications.sendRouteNotification, {
+        expoPushToken: driver.expoPushToken,
+        title: "New Route Assigned 🚸",
+        body: `You have a new ${args.period} route for ${child?.firstName} on ${args.date}`,
+        data: { routeId: assignmentId },
+      });
+    }
 
     return assignmentId;
   },
@@ -320,12 +331,12 @@ export const copyFromPreviousDay = mutation({
       .query("routes")
       .withIndex("by_date_period", (q) => q.eq("date", previousDate).eq("period", "AM"))
       .collect();
-    
+
     const previousPM = await ctx.db
       .query("routes")
       .withIndex("by_date_period", (q) => q.eq("date", previousDate).eq("period", "PM"))
       .collect();
-    
+
     const previousAssignments = [...previousAM, ...previousPM];
 
     if (previousAssignments.length === 0) {
@@ -337,7 +348,7 @@ export const copyFromPreviousDay = mutation({
       .query("routes")
       .withIndex("by_date_period", (q) => q.eq("date", args.targetDate).eq("period", "AM"))
       .first();
-    
+
     const existingPM = await ctx.db
       .query("routes")
       .withIndex("by_date_period", (q) => q.eq("date", args.targetDate).eq("period", "PM"))
@@ -426,9 +437,9 @@ export const remove = mutation({
       routeId: args.id,
       childId: assignment.childId,
       driverId: assignment.driverId,
-      eventData: { 
+      eventData: {
         action: "deleted",
-        date: assignment.date, 
+        date: assignment.date,
         period: assignment.period,
         childName: `${child?.firstName || ""} ${child?.lastName || "Unknown"}`.trim(),
         driverName: `${driver?.firstName || ""} ${driver?.lastName || "Unknown"}`.trim(),
@@ -438,6 +449,16 @@ export const remove = mutation({
       timestamp: new Date().toISOString(),
       createdAt: new Date().toISOString(),
     });
+
+    // SEND PUSH NOTIFICATION
+    if (driver && driver.expoPushToken) {
+      await ctx.scheduler.runAfter(0, internal.notifications.sendRouteNotification, {
+        expoPushToken: driver.expoPushToken,
+        title: "Route Cancelled 🚫",
+        body: `Your ${assignment.period} route for ${child?.firstName} on ${assignment.date} has been cancelled.`,
+        data: { routeId: args.id, type: "cancellation" },
+      });
+    }
 
     return args.id;
   },
@@ -478,6 +499,16 @@ export const updateStatus = mutation({
       args.user
     ));
 
+    // SEND PUSH NOTIFICATION (only for significant status changes)
+    if (driver && driver.expoPushToken && ["cancelled", "emergency_stop", "scheduled"].includes(args.status)) {
+      await ctx.scheduler.runAfter(0, internal.notifications.sendRouteNotification, {
+        expoPushToken: driver.expoPushToken,
+        title: "Route Update 🔄",
+        body: `Route status updated to: ${args.status.replace('_', ' ').toUpperCase()}`,
+        data: { routeId: args.id, status: args.status },
+      });
+    }
+
     return args.id;
   },
 });
@@ -508,12 +539,12 @@ export const copyFromDate = mutation({
         .query("routes")
         .withIndex("by_date_period", (q) => q.eq("date", fromDate).eq("period", "AM"))
         .collect();
-      
+
       const pmRoutes = await ctx.db
         .query("routes")
         .withIndex("by_date_period", (q) => q.eq("date", fromDate).eq("period", "PM"))
         .collect();
-      
+
       sourceAssignments = [...amRoutes, ...pmRoutes];
     }
 
@@ -523,8 +554,8 @@ export const copyFromDate = mutation({
         // Check if assignment already exists
         const existing = await ctx.db
           .query("routes")
-          .withIndex("by_date_period_child", (q) =>
-            q.eq("date", toDate).eq("period", source.period).eq("childId", source.childId)
+          .withIndex("by_child_date_period", (q) =>
+            q.eq("childId", source.childId).eq("date", toDate).eq("period", source.period)
           )
           .first();
 

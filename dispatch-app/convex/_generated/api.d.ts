@@ -19,11 +19,13 @@ import type * as googleSheets from "../googleSheets.js";
 import type * as importData from "../importData.js";
 import type * as importRealData from "../importRealData.js";
 import type * as internal_auditLogs from "../internal/auditLogs.js";
+import type * as notifications from "../notifications.js";
 import type * as payroll from "../payroll.js";
 import type * as reports from "../reports.js";
 import type * as schools from "../schools.js";
 import type * as seed from "../seed.js";
 import type * as setupTestDriver from "../setupTestDriver.js";
+import type * as testing from "../testing.js";
 import type * as updateDriverClerkId from "../updateDriverClerkId.js";
 
 import type {
@@ -44,11 +46,13 @@ declare const fullApi: ApiFromModules<{
   importData: typeof importData;
   importRealData: typeof importRealData;
   "internal/auditLogs": typeof internal_auditLogs;
+  notifications: typeof notifications;
   payroll: typeof payroll;
   reports: typeof reports;
   schools: typeof schools;
   seed: typeof seed;
   setupTestDriver: typeof setupTestDriver;
+  testing: typeof testing;
   updateDriverClerkId: typeof updateDriverClerkId;
 }>;
 
