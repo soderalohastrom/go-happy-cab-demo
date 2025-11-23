@@ -16,8 +16,13 @@ Both apps connect to the same Convex deployment: `colorful-wildcat-524.convex.cl
 - 5 new Convex tables: districts, schools, schoolContacts, schoolSchedules, nonSchoolDays
 - Schools tab in Dispatch App with Districts/Schools segmented control
 - Add District and Add School functionality with validation
-- Python import script for Google Sheets data ingestion
-- Foundation for school-based child assignment and rate lookup
+
+**Phase 10: Push Notifications Infrastructure (Nov 22, 2025 - COMPLETE)**
+- **New Table:** `notifications` for tracking sent messages
+- **Backend Logic:** `notifications.ts` with `sendRouteNotification` action
+- **Internal API:** Secured sensitive queries with `internalQuery`
+- **Cron Jobs:** `scheduleReminder` for automated alerts
+- **Localization:** Backend-side message formatting (English/Portuguese)
 
 ## Development Commands
 
