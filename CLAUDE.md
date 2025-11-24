@@ -251,6 +251,10 @@ The Dispatch App is designed for early-morning route assignment:
 4. **Indexes required for filters** - Add indexes for query performance
 5. **Environment variables** - Use `VITE_` prefix for client-side access
 6. **Google Shared Drive API** - When using Google Drive API with Shared Drives (Team Drives), you MUST include `supportsAllDrives: true` parameter in all Drive API calls. Service accounts have 0 bytes storage quota and cannot create files in their own Drive - use Shared Drives instead for organization-owned storage with unlimited capacity.
+7. **Web Platform Compatibility** - When building for web with Expo Router + React Native:
+   - **`expo-router` Link Component**: The `<Link>` component can cause `CSSStyleDeclaration` errors on web due to how it applies styles. Use `<Pressable>` with `router.push()` instead for web-compatible navigation.
+   - **`react-navigation` ThemeProvider**: Can conflict with `react-native-web`'s styling engine. For web-only layouts, rely on `useColorScheme` hook directly instead of wrapping with `ThemeProvider`.
+   - **Platform-Specific Files**: Use `.web.tsx` extensions for web-specific implementations that bypass problematic native libraries (e.g., `DraggableCard.web.tsx` to avoid `react-native-reanimated` on web).
 
 ## Production Data Import Process
 
