@@ -85,16 +85,23 @@ export default function WebSidebar() {
       </View>
       
       <View style={styles.nav}>
-        {routes.map((route) => (
-          <SidebarItem 
-            key={route.href}
-            name={route.name}
-            icon={route.icon as any}
-            href={route.href}
-            isActive={pathname === route.href || (route.href !== '/' && pathname.startsWith(route.href) && !routes.some(r => r.href !== route.href && r.href.startsWith(route.href) && pathname.startsWith(r.href)))}
-            indented={(route as any).indented}
-          />
-        ))}
+        {routes.map((route) => {
+          // Special handling for root path
+          const isActive = route.href === '/' 
+            ? pathname === '/' 
+            : pathname.startsWith(route.href);
+          
+          return (
+            <SidebarItem 
+              key={route.href}
+              name={route.name}
+              icon={route.icon as any}
+              href={route.href}
+              isActive={isActive}
+              indented={(route as any).indented}
+            />
+          );
+        })}
       </View>
 
       <View style={styles.footer}>
