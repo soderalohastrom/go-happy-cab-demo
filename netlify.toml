@@ -2,14 +2,15 @@
 # This configures the Vite-based web demo (root directory)
 
 [build]
-  # Build command now includes Convex codegen
-  command = "npm run build"
+  # Build the Expo app located in dispatch-app directory
+  base = "dispatch-app"
+  command = "npm install && npm run build:web"
   publish = "dist"
 
   # Environment variables for build
   [build.environment]
     # Convex deployment URL (production)
-    VITE_CONVEX_URL = "https://colorful-wildcat-524.convex.cloud"
+    EXPO_PUBLIC_CONVEX_URL = "https://colorful-wildcat-524.convex.cloud"
 
 # Redirect rules for SPA (Single Page Application)
 [[redirects]]
