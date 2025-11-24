@@ -52,49 +52,6 @@ export default function SMSDashboard() {
 
   return (
     <ScrollView style={[styles.container, { backgroundColor: bgColor }]}>
-      {/* Stats Grid */}
-      <View style={styles.statsGrid}>
-        <View style={[styles.statCard, { backgroundColor: cardBg }]}>
-          <FontAwesome name="send" size={24} color="#007AFF" />
-          <Text style={[styles.statValue, { color: textColor }]}>{stats.total}</Text>
-          <Text style={[styles.statLabel, { color: subtextColor }]}>Total Sent</Text>
-        </View>
-        <View style={[styles.statCard, { backgroundColor: cardBg }]}>
-          <FontAwesome name="check-circle" size={24} color="#34C759" />
-          <Text style={[styles.statValue, { color: textColor }]}>{stats.delivered}</Text>
-          <Text style={[styles.statLabel, { color: subtextColor }]}>Delivered</Text>
-        </View>
-        <View style={[styles.statCard, { backgroundColor: cardBg }]}>
-          <FontAwesome name="exclamation-circle" size={24} color="#FF3B30" />
-          <Text style={[styles.statValue, { color: textColor }]}>{stats.failed}</Text>
-          <Text style={[styles.statLabel, { color: subtextColor }]}>Failed</Text>
-        </View>
-        <View style={[styles.statCard, { backgroundColor: cardBg }]}>
-          <FontAwesome name="dollar" size={24} color="#FF9500" />
-          <Text style={[styles.statValue, { color: textColor }]}>{stats.totalCredits}</Text>
-          <Text style={[styles.statLabel, { color: subtextColor }]}>Credits Used</Text>
-        </View>
-      </View>
-
-      {/* Recipients Summary */}
-      <View style={[styles.section, { backgroundColor: cardBg }]}>
-        <Text style={[styles.sectionTitle, { color: textColor }]}>Recipients</Text>
-        <View style={styles.recipientStats}>
-          <View style={styles.recipientStat}>
-            <Text style={[styles.recipientValue, { color: textColor }]}>{recipientCounts.byType.parent}</Text>
-            <Text style={[styles.recipientLabel, { color: subtextColor }]}>Parents</Text>
-          </View>
-          <View style={styles.recipientStat}>
-            <Text style={[styles.recipientValue, { color: textColor }]}>{recipientCounts.byType.driver}</Text>
-            <Text style={[styles.recipientLabel, { color: subtextColor }]}>Drivers</Text>
-          </View>
-          <View style={styles.recipientStat}>
-            <Text style={[styles.recipientValue, { color: textColor }]}>{recipientCounts.active}</Text>
-            <Text style={[styles.recipientLabel, { color: subtextColor }]}>Total Active</Text>
-          </View>
-        </View>
-      </View>
-
       {/* Quick Actions */}
       <View style={styles.section}>
         <Text style={[styles.sectionTitle, { color: textColor }]}>Quick Actions</Text>
@@ -146,6 +103,49 @@ export default function SMSDashboard() {
         ) : (
           <Text style={[styles.emptyText, { color: subtextColor }]}>No messages sent yet</Text>
         )}
+      </View>
+
+      {/* Stats Grid */}
+      <View style={styles.statsGrid}>
+        <View style={[styles.statCard, { backgroundColor: cardBg }]}>
+          <FontAwesome name="send" size={24} color="#007AFF" />
+          <Text style={[styles.statValue, { color: textColor }]}>{stats.total}</Text>
+          <Text style={[styles.statLabel, { color: subtextColor }]}>Total Sent</Text>
+        </View>
+        <View style={[styles.statCard, { backgroundColor: cardBg }]}>
+          <FontAwesome name="check-circle" size={24} color="#34C759" />
+          <Text style={[styles.statValue, { color: textColor }]}>{stats.delivered}</Text>
+          <Text style={[styles.statLabel, { color: subtextColor }]}>Delivered</Text>
+        </View>
+        <View style={[styles.statCard, { backgroundColor: cardBg }]}>
+          <FontAwesome name="exclamation-circle" size={24} color="#FF3B30" />
+          <Text style={[styles.statValue, { color: textColor }]}>{stats.failed}</Text>
+          <Text style={[styles.statLabel, { color: subtextColor }]}>Failed</Text>
+        </View>
+        <View style={[styles.statCard, { backgroundColor: cardBg }]}>
+          <FontAwesome name="dollar" size={24} color="#FF9500" />
+          <Text style={[styles.statValue, { color: textColor }]}>{stats.totalCredits}</Text>
+          <Text style={[styles.statLabel, { color: subtextColor }]}>Credits Used</Text>
+        </View>
+      </View>
+
+      {/* Recipients Summary */}
+      <View style={[styles.section, { backgroundColor: cardBg }]}>
+        <Text style={[styles.sectionTitle, { color: textColor }]}>Recipients</Text>
+        <View style={styles.recipientStats}>
+          <View style={styles.recipientStat}>
+            <Text style={[styles.recipientValue, { color: textColor }]}>{recipientCounts.byType.parent}</Text>
+            <Text style={[styles.recipientLabel, { color: subtextColor }]}>Parents</Text>
+          </View>
+          <View style={styles.recipientStat}>
+            <Text style={[styles.recipientValue, { color: textColor }]}>{recipientCounts.byType.driver}</Text>
+            <Text style={[styles.recipientLabel, { color: subtextColor }]}>Drivers</Text>
+          </View>
+          <View style={styles.recipientStat}>
+            <Text style={[styles.recipientValue, { color: textColor }]}>{recipientCounts.active}</Text>
+            <Text style={[styles.recipientLabel, { color: subtextColor }]}>Total Active</Text>
+          </View>
+        </View>
       </View>
 
       {/* Spacer for bottom */}

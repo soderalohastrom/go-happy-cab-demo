@@ -370,3 +370,80 @@ export const getSchoolDetails = query({
         };
     },
 });
+
+// ============================================================================
+// DRIVER APP QUERIES
+// Used by the Driver Mobile App for real-time schedule validation
+// ============================================================================
+
+/**
+ * Get school schedule by school ID
+ * Used for: Driver App - validate pickup times against school hours
+ */
+export const getSchoolSchedule = query({
+    args: { schoolId: v.id("schools") },
+    handler: async (ctx, args) => {
+        const schedule = await ctx.db
+            .query("schoolSchedules")
+            .withIndex("by_school", (q) => q.eq("schoolId", args.schoolId))
+            .first();
+
+        return schedule || null;
+    },
+});
+
+/**
+ * Get all non-school days for a specific school
+ * Used for: Driver App - prevent pickups on holidays
+ */
+export const getNonSchoolDays = query({
+    args: { schoolId: v.id("schools") },
+    handler: async (ctx, args) => {
+        const nonSchoolDays = await ctx.db
+            .query("nonSchoolDays")
+            .withIndex("by_school", (q) => q.eq("schoolId", args.schoolId))
+            .collect();
+
+        return nonSchoolDays.sort((a, b) => a.date.localeCompare(b.date));
+    },
+});
+
+/**
+ * Check if a specific date is a non-school day
+ * Used for: Driver App - quick validation before pickup
+ */
+export const isNonSchoolDay = query({
+    args: {
+        schoolId: v.id("schools"),
+        date: v.string(), // YYYY-MM-DD format
+    },
+    handler: async (ctx, args) => {
+        const nonSchoolDay = await ctx.db
+            .query("nonSchoolDays")
+            .withIndex("by_school_date", (q) =>
+                q.eq("schoolId", args.schoolId).eq("date", args.date)
+            )
+            .first();
+
+        return {
+            isNonSchoolDay: nonSchoolDay !== null,
+            description: nonSchoolDay?.description || null,
+        };
+    },
+});
+
+/**
+ * Get school by name (for looking up schoolId from child.schoolName)
+ * Used for: Driver App - resolve school ID from child record
+ */
+export const getSchoolByName = query({
+    args: { schoolName: v.string() },
+    handler: async (ctx, args) => {
+        const school = await ctx.db
+            .query("schools")
+            .withIndex("by_school_name", (q) => q.eq("schoolName", args.schoolName))
+            .first();
+
+        return school || null;
+    },
+});

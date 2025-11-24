@@ -54,7 +54,7 @@ export default function SchoolsScreen() {
   const updateSchool = useUpdateSchool();
 
   // Segmented control state
-  const [activeTab, setActiveTab] = useState<'districts' | 'schools'>('districts');
+  const [activeTab, setActiveTab] = useState<'districts' | 'schools'>('schools');
 
   // District modal state
   const [districtModalVisible, setDistrictModalVisible] = useState(false);
@@ -304,19 +304,19 @@ export default function SchoolsScreen() {
       {/* Segmented Control */}
       <View style={styles.segmentedControl}>
         <TouchableOpacity
-          style={[styles.segment, activeTab === 'districts' && styles.activeSegment]}
-          onPress={() => setActiveTab('districts')}
-        >
-          <Text style={[styles.segmentText, activeTab === 'districts' && styles.activeSegmentText]}>
-            Districts ({districts.length})
-          </Text>
-        </TouchableOpacity>
-        <TouchableOpacity
           style={[styles.segment, activeTab === 'schools' && styles.activeSegment]}
           onPress={() => setActiveTab('schools')}
         >
           <Text style={[styles.segmentText, activeTab === 'schools' && styles.activeSegmentText]}>
             Schools ({schools.length})
+          </Text>
+        </TouchableOpacity>
+        <TouchableOpacity
+          style={[styles.segment, activeTab === 'districts' && styles.activeSegment]}
+          onPress={() => setActiveTab('districts')}
+        >
+          <Text style={[styles.segmentText, activeTab === 'districts' && styles.activeSegmentText]}>
+            Districts ({districts.length})
           </Text>
         </TouchableOpacity>
       </View>
