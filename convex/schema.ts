@@ -824,5 +824,268 @@ export default defineSchema({
     updatedAt: v.string(),
     updatedBy: v.optional(v.string()), // Clerk user ID or "system"
   }),
+
+  // ============================================================================
+  // SMS MESSAGING SYSTEM - New tables for SMS Switchboard
+  // Added: November 24, 2025
+  // ============================================================================
+
+  /**
+   * SMS Templates - Message templates with variable substitution
+   * Migrated from Supabase POC with enhancements
+   */
+  smsTemplates: defineTable({
+    name: v.string(),
+    subject: v.optional(v.string()),
+    messageText: v.string(),
+
+    // Variable definitions with types for validation
+    variables: v.array(
+      v.object({
+        key: v.string(), // e.g., "parent_name"
+        label: v.string(), // e.g., "Parent Name"
+        defaultValue: v.optional(v.string()),
+        required: v.boolean(),
+      })
+    ),
+
+    // Categorization
+    category: v.union(
+      v.literal("pickup"),
+      v.literal("dropoff"),
+      v.literal("delay"),
+      v.literal("emergency"),
+      v.literal("schedule"),
+      v.literal("general"),
+      v.literal("custom")
+    ),
+
+    // Target audience
+    targetRecipientType: v.union(
+      v.literal("parent"),
+      v.literal("driver"),
+      v.literal("teacher"),
+      v.literal("any")
+    ),
+
+    // Localization
+    language: v.union(v.literal("en"), v.literal("pt-BR"), v.literal("es")),
+
+    // Status and metadata
+    isActive: v.boolean(),
+    usageCount: v.number(),
+    lastUsedAt: v.optional(v.string()),
+    createdBy: v.optional(v.string()),
+    createdAt: v.string(),
+    updatedAt: v.string(),
+  })
+    .index("by_category", ["category"])
+    .index("by_active", ["isActive"])
+    .index("by_language", ["language"])
+    .index("by_recipient_type", ["targetRecipientType"]),
+
+  /**
+   * SMS Messages - Individual message records
+   * Tracks all sent messages with delivery status
+   */
+  smsMessages: defineTable({
+    // Recipient info
+    recipientType: v.union(
+      v.literal("parent"),
+      v.literal("driver"),
+      v.literal("teacher"),
+      v.literal("custom")
+    ),
+    recipientId: v.optional(v.string()), // Reference to parent/driver/etc
+    recipientName: v.string(),
+    recipientPhone: v.string(),
+
+    // Message content
+    templateId: v.optional(v.id("smsTemplates")),
+    messageContent: v.string(),
+    language: v.union(v.literal("en"), v.literal("pt-BR"), v.literal("es")),
+
+    // Delivery tracking
+    status: v.union(
+      v.literal("draft"),
+      v.literal("queued"),
+      v.literal("sending"),
+      v.literal("sent"),
+      v.literal("delivered"),
+      v.literal("failed"),
+      v.literal("undelivered")
+    ),
+
+    // Twilio integration (Phase 3)
+    twilioMessageSid: v.optional(v.string()),
+    twilioConversationSid: v.optional(v.string()),
+
+    // Timestamps
+    scheduledAt: v.optional(v.string()),
+    sentAt: v.optional(v.string()),
+    deliveredAt: v.optional(v.string()),
+    failedAt: v.optional(v.string()),
+
+    // Error handling
+    errorMessage: v.optional(v.string()),
+    errorCode: v.optional(v.string()),
+
+    // Cost tracking
+    segmentCount: v.number(), // SMS segments (160 chars each)
+    costCredits: v.number(),
+
+    // Context linking
+    routeId: v.optional(v.id("routes")),
+    childId: v.optional(v.id("children")),
+    dispatchEventId: v.optional(v.id("dispatchEvents")),
+
+    // Metadata
+    sentBy: v.optional(v.string()), // Clerk user ID
+    createdAt: v.string(),
+    updatedAt: v.string(),
+  })
+    .index("by_recipient", ["recipientType", "recipientId"])
+    .index("by_status", ["status"])
+    .index("by_sent_at", ["sentAt"])
+    .index("by_route", ["routeId"])
+    .index("by_twilio_sid", ["twilioMessageSid"]),
+
+  /**
+   * SMS Recipients - Contact directory for quick access
+   * Links to existing parents table but allows custom contacts too
+   */
+  smsRecipients: defineTable({
+    // Recipient type determines source
+    recipientType: v.union(
+      v.literal("parent"),
+      v.literal("driver"),
+      v.literal("teacher"),
+      v.literal("school_contact"),
+      v.literal("custom")
+    ),
+
+    // For linked contacts
+    linkedParentId: v.optional(v.id("parents")),
+    linkedDriverId: v.optional(v.id("drivers")),
+    linkedSchoolContactId: v.optional(v.id("schoolContacts")),
+
+    // Contact info (denormalized for quick access)
+    name: v.string(),
+    phone: v.string(),
+    email: v.optional(v.string()),
+
+    // For parent recipients
+    childName: v.optional(v.string()),
+    childId: v.optional(v.id("children")),
+
+    // Communication preferences
+    preferredLanguage: v.union(v.literal("en"), v.literal("pt-BR"), v.literal("es")),
+    optedOut: v.boolean(),
+    optOutDate: v.optional(v.string()),
+
+    // Context
+    notes: v.optional(v.string()),
+    tags: v.optional(v.array(v.string())),
+
+    // Status
+    status: v.union(v.literal("active"), v.literal("inactive")),
+    lastContactedAt: v.optional(v.string()),
+    messageCount: v.number(),
+
+    createdAt: v.string(),
+    updatedAt: v.string(),
+  })
+    .index("by_type", ["recipientType"])
+    .index("by_phone", ["phone"])
+    .index("by_status", ["status"])
+    .index("by_parent", ["linkedParentId"])
+    .index("by_driver", ["linkedDriverId"]),
+
+  /**
+   * SMS Campaigns - Bulk messaging campaigns
+   * For sending same message to multiple recipients
+   */
+  smsCampaigns: defineTable({
+    name: v.string(),
+    description: v.optional(v.string()),
+
+    // Template
+    templateId: v.optional(v.id("smsTemplates")),
+    messageContent: v.string(),
+
+    // Recipients
+    recipientFilter: v.object({
+      types: v.array(v.string()), // ["parent", "driver"]
+      tags: v.optional(v.array(v.string())),
+      status: v.optional(v.string()),
+    }),
+    recipientCount: v.number(),
+
+    // Status
+    status: v.union(
+      v.literal("draft"),
+      v.literal("scheduled"),
+      v.literal("sending"),
+      v.literal("completed"),
+      v.literal("cancelled")
+    ),
+
+    // Progress
+    sentCount: v.number(),
+    deliveredCount: v.number(),
+    failedCount: v.number(),
+
+    // Scheduling
+    scheduledAt: v.optional(v.string()),
+    startedAt: v.optional(v.string()),
+    completedAt: v.optional(v.string()),
+
+    // Metadata
+    createdBy: v.string(),
+    createdAt: v.string(),
+    updatedAt: v.string(),
+  })
+    .index("by_status", ["status"])
+    .index("by_scheduled", ["scheduledAt"]),
+
+  /**
+   * Twilio Configuration - API settings and status
+   * Stores Twilio config separate from env vars for flexibility
+   */
+  twilioConfig: defineTable({
+    // Identification
+    configName: v.string(), // "production", "development"
+    isActive: v.boolean(),
+
+    // Phone number
+    phoneNumber: v.string(), // +14158002273
+    phoneNumberSid: v.optional(v.string()),
+
+    // Service SIDs (reference only - actual creds in env)
+    messagingServiceSid: v.optional(v.string()),
+    notifyServiceSid: v.optional(v.string()),
+    conversationsServiceSid: v.optional(v.string()),
+
+    // A2P 10DLC Status
+    a2pBrandStatus: v.optional(v.string()),
+    a2pCampaignStatus: v.optional(v.string()),
+    a2pRegisteredAt: v.optional(v.string()),
+
+    // Rate limits
+    messagesPerSecond: v.number(),
+    dailyLimit: v.optional(v.number()),
+
+    // Webhook URLs
+    statusCallbackUrl: v.optional(v.string()),
+    inboundMessageUrl: v.optional(v.string()),
+
+    // Usage tracking
+    monthlyMessageCount: v.number(),
+    monthlyResetDate: v.string(),
+
+    createdAt: v.string(),
+    updatedAt: v.string(),
+  })
+    .index("by_active", ["isActive"]),
 });
 

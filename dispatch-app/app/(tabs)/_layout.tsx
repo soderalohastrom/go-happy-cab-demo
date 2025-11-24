@@ -75,6 +75,14 @@ export default function TabLayout() {
           tabBarIcon: ({ color }) => <TabBarIcon name="bar-chart" color={color} />,
         }}
       />
+      <Tabs.Screen
+        name="sms"
+        options={{
+          title: 'SMS',
+          headerShown: false,
+          tabBarIcon: ({ color }) => <TabBarIcon name="comment" color={color} />,
+        }}
+      />
     </Tabs>
   );
 }

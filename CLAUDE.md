@@ -24,6 +24,14 @@ Both apps connect to the same Convex deployment: `colorful-wildcat-524.convex.cl
 - **Cron Jobs:** `scheduleReminder` for automated alerts
 - **Localization:** Backend-side message formatting (English/Portuguese)
 
+**Phase 12: SMS Switchboard Integration (Nov 24, 2025 - PHASE 2 COMPLETE)**
+- **5 New Tables:** `smsTemplates`, `smsMessages`, `smsRecipients`, `smsCampaigns`, `twilioConfig`
+- **Backend Functions:** Full CRUD for templates, messages, recipients with bilingual support
+- **SMS Dashboard:** 5-screen React Native UI (Dashboard, Send, Messages, Recipients, Templates)
+- **168 Recipients:** 91 parents + 77 drivers synced from existing data
+- **18 Templates:** Bilingual (EN/PT-BR) for pickup, dropoff, delay, emergency, schedule events
+- **Phase 3 (Future):** Twilio API integration after A2P 10DLC approval
+
 ## Development Commands
 
 ### POC App (Vite)

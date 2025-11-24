@@ -9,12 +9,14 @@ const SidebarItem = ({
   name,
   icon,
   href,
-  isActive
+  isActive,
+  indented = false,
 }: {
   name: string;
   icon: React.ComponentProps<typeof FontAwesome>['name'];
   href: string;
   isActive: boolean;
+  indented?: boolean;
 }) => {
   const router = useRouter();
   const colorScheme = useColorScheme();
@@ -28,20 +30,22 @@ const SidebarItem = ({
         onPress={() => router.push(href)}
         style={[
           styles.item, 
-          { backgroundColor }
+          { backgroundColor },
+          indented && styles.itemIndented,
         ]}
       >
         {({ hovered }) => (
           <View style={[styles.itemContent, hovered && styles.itemHovered]}>
             <FontAwesome 
               name={icon} 
-              size={20} 
+              size={indented ? 16 : 20} 
               color={isActive ? activeColor : inactiveColor} 
-              style={styles.icon}
+              style={[styles.icon, indented && styles.iconSmall]}
             />
             <Text style={[
               styles.label, 
-              { color: isActive ? activeColor : inactiveColor, fontWeight: isActive ? '600' : '400' }
+              { color: isActive ? activeColor : inactiveColor, fontWeight: isActive ? '600' : '400' },
+              indented && styles.labelSmall,
             ]}>
               {name}
             </Text>
@@ -63,11 +67,14 @@ export default function WebSidebar() {
 
   const routes = [
     { name: 'Dispatch', icon: 'calendar', href: '/' },
-    { name: 'Drivers', icon: 'users', href: '/drivers' },
-    { name: 'Children', icon: 'child', href: '/children' },
-    { name: 'Schools', icon: 'building', href: '/schools' },
-    { name: 'Reports', icon: 'bar-chart', href: '/reports' },
     { name: 'CRM', icon: 'address-book', href: '/crm' },
+    { name: 'Drivers', icon: 'users', href: '/drivers', indented: true },
+    { name: 'Children', icon: 'child', href: '/children', indented: true },
+    { name: 'Schools', icon: 'building', href: '/schools', indented: true },
+    { name: 'SMS', icon: 'comment', href: '/sms' },
+    { name: 'Send SMS', icon: 'paper-plane', href: '/sms/send', indented: true },
+    { name: 'Messages', icon: 'envelope', href: '/sms/messages', indented: true },
+    { name: 'Reports', icon: 'bar-chart', href: '/reports' },
   ];
 
   return (
@@ -84,7 +91,8 @@ export default function WebSidebar() {
             name={route.name}
             icon={route.icon as any}
             href={route.href}
-            isActive={pathname === route.href || (route.href !== '/' && pathname.startsWith(route.href))}
+            isActive={pathname === route.href || (route.href !== '/' && pathname.startsWith(route.href) && !routes.some(r => r.href !== route.href && r.href.startsWith(route.href) && pathname.startsWith(r.href)))}
+            indented={(route as any).indented}
           />
         ))}
       </View>
@@ -127,6 +135,9 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     overflow: 'hidden',
   },
+  itemIndented: {
+    marginLeft: 20,
+  },
   itemContent: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -141,8 +152,15 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     marginRight: 10,
   },
+  iconSmall: {
+    width: 24,
+    marginRight: 8,
+  },
   label: {
     fontSize: 16,
+  },
+  labelSmall: {
+    fontSize: 14,
   },
   footer: {
     padding: 20,
