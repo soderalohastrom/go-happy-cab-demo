@@ -693,25 +693,31 @@ export default function AssignmentScreen({ date }: AssignmentScreenProps) {
                 </View>
               );
             } else {
-              // SINGLE ROUTE: Show as regular card
+              // SINGLE ROUTE: Show as stacked card (child above driver)
               const route = firstRoute;
               return (
                 <View key={route._id} style={styles.routeCard}>
                   <View style={styles.routeInfo}>
-                    <View style={styles.routePair}>
-                      <View style={styles.person}>
+                    {/* Stacked layout for single pairings */}
+                    <View style={styles.singleRouteStack}>
+                      {/* Child row */}
+                      <View style={styles.singleRoutePerson}>
                         <Text style={styles.personIcon}>👧</Text>
-                        <Text style={styles.personName}>{route.childName}</Text>
+                        <Text style={styles.singleRoutePersonName} numberOfLines={1}>
+                          {route.childName}
+                        </Text>
                       </View>
-                      <Text style={styles.arrow}>→</Text>
-                      <View style={styles.person}>
+                      {/* Driver row */}
+                      <View style={styles.singleRoutePerson}>
                         <Text style={styles.personIcon}>🚗</Text>
-                        <Text style={styles.personName}>{route.driverName}</Text>
+                        <Text style={styles.singleRoutePersonName} numberOfLines={1}>
+                          {route.driverName}
+                        </Text>
+                        {route.scheduledTime && (
+                          <Text style={styles.singleRouteTime}>⏰ {route.scheduledTime}</Text>
+                        )}
                       </View>
                     </View>
-                    {route.scheduledTime && (
-                      <Text style={styles.timeText}>⏰ {route.scheduledTime}</Text>
-                    )}
 
                     {/* Status Indicators - Real-time updates from Driver App */}
                     {route.status === 'completed' && (
@@ -1230,6 +1236,25 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
+  },
+  // SINGLE ROUTE STACKED LAYOUT STYLES
+  singleRouteStack: {
+    gap: 4,
+  },
+  singleRoutePerson: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  singleRoutePersonName: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#333',
+    flex: 1,
+  },
+  singleRouteTime: {
+    fontSize: 12,
+    color: '#666',
+    marginLeft: 8,
   },
 });
 
