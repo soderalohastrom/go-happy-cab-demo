@@ -48,24 +48,10 @@ export default function TabLayout() {
         }}
       />
       <Tabs.Screen
-        name="drivers"
+        name="crm"
         options={{
-          title: 'Drivers',
-          tabBarIcon: ({ color }) => <TabBarIcon name="users" color={color} />,
-        }}
-      />
-      <Tabs.Screen
-        name="children"
-        options={{
-          title: 'Children',
-          tabBarIcon: ({ color }) => <TabBarIcon name="child" color={color} />,
-        }}
-      />
-      <Tabs.Screen
-        name="schools"
-        options={{
-          title: 'Schools',
-          tabBarIcon: ({ color }) => <TabBarIcon name="building" color={color} />,
+          title: 'CRM',
+          tabBarIcon: ({ color }) => <TabBarIcon name="address-book" color={color} />,
         }}
       />
       <Tabs.Screen
@@ -81,6 +67,31 @@ export default function TabLayout() {
           title: 'SMS',
           headerShown: false,
           tabBarIcon: ({ color }) => <TabBarIcon name="comment" color={color} />,
+        }}
+      />
+      {/* Hidden tabs - still accessible for web sidebar navigation */}
+      <Tabs.Screen
+        name="drivers"
+        options={{
+          title: 'Drivers',
+          href: null, // Hide from mobile tab bar
+          tabBarIcon: ({ color }) => <TabBarIcon name="users" color={color} />,
+        }}
+      />
+      <Tabs.Screen
+        name="children"
+        options={{
+          title: 'Children',
+          href: null, // Hide from mobile tab bar
+          tabBarIcon: ({ color }) => <TabBarIcon name="child" color={color} />,
+        }}
+      />
+      <Tabs.Screen
+        name="schools"
+        options={{
+          title: 'Schools',
+          href: null, // Hide from mobile tab bar
+          tabBarIcon: ({ color }) => <TabBarIcon name="building" color={color} />,
         }}
       />
     </Tabs>
