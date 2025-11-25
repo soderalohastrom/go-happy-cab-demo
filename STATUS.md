@@ -1,11 +1,38 @@
 # Go Happy Cab - Project Status
 
 **Last Updated:** November 24, 2025
-**Status:** 📱 **SMS SWITCHBOARD PHASE 2 COMPLETE** - Full UI + Backend Ready!
+**Status:** 📱 **MOBILE CRM TAB CONSOLIDATION COMPLETE** - 4-Tab Mobile Footer!
 **Unified Convex:** `colorful-wildcat-524.convex.cloud`
-**Branch:** `feature/web-dashboard`
+**Branch:** `feature/web-dashboard` → Merged to `master`
 
-## 🚀 **LATEST: SMS SWITCHBOARD INTEGRATION - PHASE 2 COMPLETE!**
+## 🚀 **LATEST: MOBILE CRM TAB CONSOLIDATION - COMPLETE!**
+
+**Nov 24, 2025** - **Condensed mobile navigation from 6 to 4 tabs with CRM consolidation.**
+
+### ✅ Phase 13: Mobile CRM Tab Consolidation - COMPLETE
+
+**📱 Mobile Footer Changes:**
+- ✅ **4-Tab Footer:** Dispatch | CRM | Reports | SMS (reduced from 6 tabs)
+- ✅ **CRM Tab:** Consolidates Children, Drivers, Schools into single tab
+- ✅ **3-Segment Control:** Children | Drivers | Schools (inside CRM screen)
+- ✅ **No Default Selection:** Opens to Global CRM placeholder, user selects entity tab
+- ✅ **Toggle Behavior:** Tap same segment again to return to placeholder
+
+**🔧 Architecture:**
+- ✅ **Extracted Components:** `DriversContent.tsx`, `ChildrenContent.tsx`, `SchoolsContent.tsx`
+- ✅ **Thin Wrappers:** Original tab files now import extracted components
+- ✅ **New CRM Tab:** `app/(tabs)/crm.tsx` with segmented control
+- ✅ **Hidden Tabs:** Entity tabs use `href: null` (hidden from mobile, accessible for web sidebar)
+- ✅ **Web Unchanged:** Sidebar navigation remains hierarchical with direct entity links
+
+**🖥️ Web CRM Placeholder:**
+- ✅ **Disclaimer Card:** Instructions to use sidebar entity links
+- ✅ **Dashed Border Card:** "Global CRM - Company Contacts - Coming soon..."
+- ✅ **Quick Links Section:** Lists Children, Drivers, Schools with descriptions
+
+---
+
+## 🚀 **PREVIOUS: SMS SWITCHBOARD INTEGRATION - PHASE 2 COMPLETE!**
 
 **Nov 24, 2025** - **Complete SMS dashboard with backend infrastructure and 5-screen UI.**
 
