@@ -180,6 +180,13 @@ export const update = internalMutation({
       phone: v.string(),
       relationship: v.string(),
     })),
+    // New fields from Google Sheets import
+    dateOfBirth: v.optional(v.string()),
+    jobTitle: v.optional(v.string()),
+    licenseNumber: v.optional(v.string()),
+    licenseExpiry: v.optional(v.string()),
+    licenseStateOfIssue: v.optional(v.string()),
+    licenseZipCode: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
     const { id, ...updates } = args;

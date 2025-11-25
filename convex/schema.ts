@@ -21,10 +21,11 @@ export default defineSchema({
     // Basic Info
     employeeId: v.string(),
     firstName: v.string(),
-    middleName: v.optional(v.string()), // NEW
+    middleName: v.optional(v.string()),
     lastName: v.string(),
     email: v.string(),
     phone: v.string(),
+    dateOfBirth: v.optional(v.string()), // NEW: Birthday from Google Sheets (MM/DD/YYYY or ISO)
 
     // Address
     address: v.optional(v.object({
@@ -44,12 +45,13 @@ export default defineSchema({
     taxiApplicationStatus: v.optional(v.string()),
     mvrStatus: v.optional(v.string()),
 
-    // NEW: CSV Import Fields - Driver Details
+    // CSV Import Fields - Driver Details
     primaryLanguage: v.optional(v.string()), // Driver's primary language (e.g., "Portuguese", "English")
     availabilityAM: v.optional(v.string()), // AM availability: "YES", "NO", "LIMITED"
     availabilityPM: v.optional(v.string()), // PM availability: "YES", "NO", "LIMITED"
     startDate: v.optional(v.string()), // Driver hire date (ISO format)
     specialEquipment: v.optional(v.string()), // Vehicle equipment (e.g., "Car Seats, Booster")
+    jobTitle: v.optional(v.string()), // NEW: Job title from Google Sheets (e.g., "Go Happy Driver", "CEO")
 
     // Authentication (driver app)
     pin: v.optional(v.string()), // Hashed with salt
@@ -70,9 +72,11 @@ export default defineSchema({
       v.literal("admin")
     ),
 
-    // Credentials
+    // Credentials - License Info
     licenseNumber: v.optional(v.string()),
     licenseExpiry: v.optional(v.string()),
+    licenseStateOfIssue: v.optional(v.string()), // NEW: State that issued CDL (e.g., "CA")
+    licenseZipCode: v.optional(v.string()), // NEW: Zip code on license
 
     // Emergency Contact
     emergencyContact: v.optional(v.object({
@@ -102,6 +106,35 @@ export default defineSchema({
     .index("by_email", ["email"])
     .index("by_status", ["status"])
     .index("by_active", ["active"]),
+
+  /**
+   * Vehicles - Driver vehicle information
+   * NEW TABLE: Imported from Google Sheets driver roster
+   * One driver can have one active vehicle at a time
+   */
+  vehicles: defineTable({
+    driverId: v.id("drivers"),
+
+    // Vehicle Details
+    year: v.optional(v.string()), // e.g., "2019"
+    make: v.optional(v.string()), // e.g., "Honda"
+    model: v.optional(v.string()), // e.g., "Odyssey"
+    color: v.optional(v.string()), // e.g., "White"
+
+    // Registration
+    plateNumber: v.optional(v.string()), // License plate
+    vin: v.optional(v.string()), // Vehicle Identification Number
+
+    // Status
+    isActive: v.boolean(),
+
+    // Metadata
+    createdAt: v.string(),
+    updatedAt: v.string(),
+  })
+    .index("by_driver", ["driverId"])
+    .index("by_active", ["isActive"])
+    .index("by_plate", ["plateNumber"]),
 
   /**
    * Children - Full schema from driver app

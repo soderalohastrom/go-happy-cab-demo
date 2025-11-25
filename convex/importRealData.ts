@@ -569,3 +569,242 @@ function countByLanguage(items: any[]): Record<string, number> {
   });
   return counts;
 }
+
+// ============================================================================
+// IMPORT DRIVER DETAILS & VEHICLES FROM GOOGLE SHEETS
+// ============================================================================
+
+/**
+ * Import driver details and vehicle info from Google Sheets roster.
+ * Matches by email (primary) or firstName + lastName (fallback).
+ *
+ * Google Sheets columns:
+ * - First Name, Middle Name, Last Name, Phone, Address, Email
+ * - Birthday (MM/DD/YYYY), CDL # (license number), DL_Exp (expiry date)
+ * - Contract Date, CDL_St_of_Issue, License_Zip_Code
+ * - Vehicle_Year, Vehicle_Make, Vehicle_Model, Vehicle_Color, Vehicle_Plate No, Vehicle_VIN #
+ * - Job title (from Sheet2)
+ */
+export const importDriverDetailsFromSheets = internalMutation({
+  args: {
+    drivers: v.array(
+      v.object({
+        firstName: v.string(),
+        middleName: v.optional(v.string()),
+        lastName: v.string(),
+        email: v.optional(v.string()),
+        phone: v.optional(v.string()),
+        address: v.optional(v.string()),
+        birthday: v.optional(v.string()),
+        licenseNumber: v.optional(v.string()),
+        licenseExpiry: v.optional(v.string()),
+        contractDate: v.optional(v.string()),
+        licenseStateOfIssue: v.optional(v.string()),
+        licenseZipCode: v.optional(v.string()),
+        jobTitle: v.optional(v.string()),
+        vehicleYear: v.optional(v.string()),
+        vehicleMake: v.optional(v.string()),
+        vehicleModel: v.optional(v.string()),
+        vehicleColor: v.optional(v.string()),
+        vehiclePlate: v.optional(v.string()),
+        vehicleVin: v.optional(v.string()),
+      })
+    ),
+  },
+  handler: async (ctx, args) => {
+    const now = new Date().toISOString();
+    const existingDrivers = await ctx.db.query("drivers").collect();
+
+    const updated: string[] = [];
+    const vehiclesCreated: string[] = [];
+    const notFound: string[] = [];
+    const errors: string[] = [];
+
+    for (const sheetDriver of args.drivers) {
+      try {
+        // Match by email first (most reliable), then by name
+        let matchedDriver = sheetDriver.email
+          ? existingDrivers.find(
+              (d) => d.email.toLowerCase() === sheetDriver.email!.toLowerCase()
+            )
+          : undefined;
+
+        if (!matchedDriver) {
+          // Fallback: match by firstName + lastName
+          matchedDriver = existingDrivers.find(
+            (d) =>
+              d.firstName.toLowerCase() === sheetDriver.firstName.toLowerCase() &&
+              d.lastName.toLowerCase() === sheetDriver.lastName.toLowerCase()
+          );
+        }
+
+        if (!matchedDriver) {
+          notFound.push(`${sheetDriver.firstName} ${sheetDriver.lastName}`);
+          continue;
+        }
+
+        // Prepare driver updates (only non-empty fields)
+        const driverUpdates: Record<string, any> = {
+          updatedAt: now,
+        };
+
+        if (sheetDriver.middleName) {
+          driverUpdates.middleName = sheetDriver.middleName;
+        }
+        if (sheetDriver.birthday) {
+          // Convert MM/DD/YYYY to ISO format if needed
+          driverUpdates.dateOfBirth = normalizeDate(sheetDriver.birthday);
+        }
+        if (sheetDriver.licenseNumber) {
+          driverUpdates.licenseNumber = sheetDriver.licenseNumber;
+        }
+        if (sheetDriver.licenseExpiry) {
+          driverUpdates.licenseExpiry = normalizeDate(sheetDriver.licenseExpiry);
+        }
+        if (sheetDriver.contractDate) {
+          driverUpdates.startDate = normalizeDate(sheetDriver.contractDate);
+        }
+        if (sheetDriver.licenseStateOfIssue) {
+          driverUpdates.licenseStateOfIssue = sheetDriver.licenseStateOfIssue;
+        }
+        if (sheetDriver.licenseZipCode) {
+          driverUpdates.licenseZipCode = sheetDriver.licenseZipCode;
+        }
+        if (sheetDriver.jobTitle) {
+          driverUpdates.jobTitle = sheetDriver.jobTitle;
+        }
+        if (sheetDriver.phone && !matchedDriver.phone) {
+          driverUpdates.phone = sheetDriver.phone;
+        }
+
+        // Update driver record
+        await ctx.db.patch(matchedDriver._id, driverUpdates);
+        updated.push(`${matchedDriver.firstName} ${matchedDriver.lastName}`);
+
+        // Create vehicle record if vehicle data exists
+        const hasVehicleData =
+          sheetDriver.vehicleYear ||
+          sheetDriver.vehicleMake ||
+          sheetDriver.vehicleModel ||
+          sheetDriver.vehiclePlate ||
+          sheetDriver.vehicleVin;
+
+        if (hasVehicleData) {
+          // Check if vehicle already exists for this driver
+          const existingVehicle = await ctx.db
+            .query("vehicles")
+            .withIndex("by_driver", (q) => q.eq("driverId", matchedDriver!._id))
+            .first();
+
+          if (existingVehicle) {
+            // Update existing vehicle
+            await ctx.db.patch(existingVehicle._id, {
+              year: sheetDriver.vehicleYear || existingVehicle.year,
+              make: sheetDriver.vehicleMake || existingVehicle.make,
+              model: sheetDriver.vehicleModel || existingVehicle.model,
+              color: sheetDriver.vehicleColor || existingVehicle.color,
+              plateNumber: sheetDriver.vehiclePlate || existingVehicle.plateNumber,
+              vin: sheetDriver.vehicleVin || existingVehicle.vin,
+              updatedAt: now,
+            });
+          } else {
+            // Create new vehicle
+            await ctx.db.insert("vehicles", {
+              driverId: matchedDriver._id,
+              year: sheetDriver.vehicleYear,
+              make: sheetDriver.vehicleMake,
+              model: sheetDriver.vehicleModel,
+              color: sheetDriver.vehicleColor,
+              plateNumber: sheetDriver.vehiclePlate,
+              vin: sheetDriver.vehicleVin,
+              isActive: true,
+              createdAt: now,
+              updatedAt: now,
+            });
+          }
+          vehiclesCreated.push(
+            `${sheetDriver.vehicleYear || ""} ${sheetDriver.vehicleMake || ""} ${sheetDriver.vehicleModel || ""} → ${matchedDriver.firstName}`
+          );
+        }
+      } catch (error: any) {
+        errors.push(
+          `Failed to update ${sheetDriver.firstName} ${sheetDriver.lastName}: ${error.message}`
+        );
+      }
+    }
+
+    return {
+      success: errors.length === 0,
+      driversUpdated: updated.length,
+      vehiclesCreated: vehiclesCreated.length,
+      driversNotFound: notFound.length,
+      errors: errors.length,
+      updatedDrivers: updated,
+      createdVehicles: vehiclesCreated,
+      notFoundDrivers: notFound,
+      errorDetails: errors,
+      message: `Updated ${updated.length} drivers, created/updated ${vehiclesCreated.length} vehicles. ${notFound.length} drivers not found in Convex.`,
+    };
+  },
+});
+
+/**
+ * Normalize date from MM/DD/YYYY or other formats to ISO YYYY-MM-DD
+ */
+function normalizeDate(dateStr: string): string {
+  if (!dateStr) return dateStr;
+
+  // Already ISO format
+  if (/^\d{4}-\d{2}-\d{2}/.test(dateStr)) {
+    return dateStr.split("T")[0];
+  }
+
+  // MM/DD/YYYY format
+  const mdyMatch = dateStr.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+  if (mdyMatch) {
+    const [, month, day, year] = mdyMatch;
+    return `${year}-${month.padStart(2, "0")}-${day.padStart(2, "0")}`;
+  }
+
+  // M/D/YY format
+  const mdyShortMatch = dateStr.match(/^(\d{1,2})\/(\d{1,2})\/(\d{2})$/);
+  if (mdyShortMatch) {
+    const [, month, day, shortYear] = mdyShortMatch;
+    const year = parseInt(shortYear) > 50 ? `19${shortYear}` : `20${shortYear}`;
+    return `${year}-${month.padStart(2, "0")}-${day.padStart(2, "0")}`;
+  }
+
+  // Return as-is if unrecognized
+  return dateStr;
+}
+
+/**
+ * Get summary of driver data completeness
+ */
+export const getDriverDataCompleteness = internalMutation({
+  args: {},
+  handler: async (ctx) => {
+    const drivers = await ctx.db.query("drivers").collect();
+    const vehicles = await ctx.db.query("vehicles").collect();
+
+    const withBirthday = drivers.filter((d) => d.dateOfBirth).length;
+    const withLicenseNumber = drivers.filter((d) => d.licenseNumber).length;
+    const withLicenseExpiry = drivers.filter((d) => d.licenseExpiry).length;
+    const withLicenseState = drivers.filter((d) => d.licenseStateOfIssue).length;
+    const withJobTitle = drivers.filter((d) => d.jobTitle).length;
+    const withVehicle = vehicles.filter((v) => v.isActive).length;
+
+    return {
+      totalDrivers: drivers.length,
+      totalVehicles: vehicles.length,
+      dataCompleteness: {
+        birthday: { count: withBirthday, percent: Math.round((withBirthday / drivers.length) * 100) },
+        licenseNumber: { count: withLicenseNumber, percent: Math.round((withLicenseNumber / drivers.length) * 100) },
+        licenseExpiry: { count: withLicenseExpiry, percent: Math.round((withLicenseExpiry / drivers.length) * 100) },
+        licenseState: { count: withLicenseState, percent: Math.round((withLicenseState / drivers.length) * 100) },
+        jobTitle: { count: withJobTitle, percent: Math.round((withJobTitle / drivers.length) * 100) },
+        vehicle: { count: withVehicle, percent: Math.round((withVehicle / drivers.length) * 100) },
+      },
+    };
+  },
+});

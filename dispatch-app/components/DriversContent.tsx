@@ -49,6 +49,13 @@ export default function DriversContent() {
       phone: '',
       relationship: '',
     },
+    // New fields from Google Sheets import
+    dateOfBirth: '',
+    jobTitle: '',
+    licenseNumber: '',
+    licenseExpiry: '',
+    licenseStateOfIssue: '',
+    licenseZipCode: '',
   });
   const [isAdding, setIsAdding] = useState(false);
 
@@ -64,9 +71,24 @@ export default function DriversContent() {
           id: editingDriver._id,
           employeeId: newDriver.employeeId,
           firstName: newDriver.firstName,
+          middleName: newDriver.middleName || undefined,
           lastName: newDriver.lastName,
           email: newDriver.email,
           phone: newDriver.phone,
+          primaryLanguage: newDriver.primaryLanguage || undefined,
+          address: newDriver.address.street ? newDriver.address : undefined,
+          startDate: newDriver.startDate || undefined,
+          availabilityAM: newDriver.availabilityAM || undefined,
+          availabilityPM: newDriver.availabilityPM || undefined,
+          specialEquipment: newDriver.specialEquipment || undefined,
+          emergencyContact: newDriver.emergencyContact.name ? newDriver.emergencyContact : undefined,
+          // New fields from Google Sheets import
+          dateOfBirth: newDriver.dateOfBirth || undefined,
+          jobTitle: newDriver.jobTitle || undefined,
+          licenseNumber: newDriver.licenseNumber || undefined,
+          licenseExpiry: newDriver.licenseExpiry || undefined,
+          licenseStateOfIssue: newDriver.licenseStateOfIssue || undefined,
+          licenseZipCode: newDriver.licenseZipCode || undefined,
         });
         Alert.alert('Success', 'Driver updated successfully!');
       } else {
@@ -88,6 +110,12 @@ export default function DriversContent() {
         availabilityPM: '',
         specialEquipment: '',
         emergencyContact: { name: '', phone: '', relationship: '' },
+        dateOfBirth: '',
+        jobTitle: '',
+        licenseNumber: '',
+        licenseExpiry: '',
+        licenseStateOfIssue: '',
+        licenseZipCode: '',
       });
       setEditingDriver(null);
       setModalMode('add');
@@ -115,6 +143,12 @@ export default function DriversContent() {
       availabilityPM: '',
       specialEquipment: '',
       emergencyContact: { name: '', phone: '', relationship: '' },
+      dateOfBirth: '',
+      jobTitle: '',
+      licenseNumber: '',
+      licenseExpiry: '',
+      licenseStateOfIssue: '',
+      licenseZipCode: '',
     });
     setModalVisible(true);
   };
@@ -136,6 +170,13 @@ export default function DriversContent() {
       availabilityPM: (driver as any).availabilityPM || '',
       specialEquipment: (driver as any).specialEquipment || '',
       emergencyContact: (driver as any).emergencyContact || { name: '', phone: '', relationship: '' },
+      // New fields from Google Sheets import
+      dateOfBirth: (driver as any).dateOfBirth || '',
+      jobTitle: (driver as any).jobTitle || '',
+      licenseNumber: (driver as any).licenseNumber || '',
+      licenseExpiry: (driver as any).licenseExpiry || '',
+      licenseStateOfIssue: (driver as any).licenseStateOfIssue || '',
+      licenseZipCode: (driver as any).licenseZipCode || '',
     });
     setModalVisible(true);
   };
@@ -279,6 +320,20 @@ export default function DriversContent() {
                 value={newDriver.primaryLanguage}
                 onChangeText={(text) => setNewDriver({ ...newDriver, primaryLanguage: text })}
               />
+              <TextInput
+                style={styles.input}
+                placeholder="Date of Birth (YYYY-MM-DD)"
+                placeholderTextColor="#999"
+                value={newDriver.dateOfBirth}
+                onChangeText={(text) => setNewDriver({ ...newDriver, dateOfBirth: text })}
+              />
+              <TextInput
+                style={styles.input}
+                placeholder="Job Title"
+                placeholderTextColor="#999"
+                value={newDriver.jobTitle}
+                onChangeText={(text) => setNewDriver({ ...newDriver, jobTitle: text })}
+              />
 
               {/* Address Section */}
               <Text style={styles.sectionTitle}>Address</Text>
@@ -376,6 +431,40 @@ export default function DriversContent() {
                 onChangeText={(text) => setNewDriver({ ...newDriver, specialEquipment: text })}
                 multiline
                 numberOfLines={2}
+              />
+
+              {/* License Information Section */}
+              <Text style={styles.sectionTitle}>License Information</Text>
+              <TextInput
+                style={styles.input}
+                placeholder="License Number"
+                placeholderTextColor="#999"
+                value={newDriver.licenseNumber}
+                onChangeText={(text) => setNewDriver({ ...newDriver, licenseNumber: text })}
+              />
+              <TextInput
+                style={styles.input}
+                placeholder="License Expiry (YYYY-MM-DD)"
+                placeholderTextColor="#999"
+                value={newDriver.licenseExpiry}
+                onChangeText={(text) => setNewDriver({ ...newDriver, licenseExpiry: text })}
+              />
+              <TextInput
+                style={styles.input}
+                placeholder="License State of Issue (e.g., CA)"
+                placeholderTextColor="#999"
+                value={newDriver.licenseStateOfIssue}
+                onChangeText={(text) => setNewDriver({ ...newDriver, licenseStateOfIssue: text })}
+                autoCapitalize="characters"
+                maxLength={2}
+              />
+              <TextInput
+                style={styles.input}
+                placeholder="License Zip Code"
+                placeholderTextColor="#999"
+                value={newDriver.licenseZipCode}
+                onChangeText={(text) => setNewDriver({ ...newDriver, licenseZipCode: text })}
+                keyboardType="numeric"
               />
 
               {/* Emergency Contact Section */}
