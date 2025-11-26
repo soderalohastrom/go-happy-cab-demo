@@ -778,6 +778,660 @@ function normalizeDate(dateStr: string): string {
   return dateStr;
 }
 
+// ============================================================================
+// IMPORT PARENT/GUARDIAN DATA FROM GOOGLE SHEETS
+// ============================================================================
+
+/**
+ * Import parent/guardian contact info from Google Sheets to enrich children records.
+ * Matches by child firstName + lastName.
+ *
+ * Google Sheets columns (Sheet: "Sheet1"):
+ * - First Name (parent), Last Name (parent), Title ("{Child} Parent")
+ * - Cellphone (parent phone)
+ * - Company (school name - for validation)
+ * - Rider_FirstNm, Rider_LastNm (child name for matching)
+ * - Columns H-K: Address (street, unit, city, zip)
+ */
+export const importParentDetailsFromSheets = internalMutation({
+  args: {
+    parents: v.array(
+      v.object({
+        parentFirstName: v.string(),
+        parentLastName: v.string(),
+        parentPhone: v.optional(v.string()),
+        childFirstName: v.string(),
+        childLastName: v.string(),
+        schoolName: v.optional(v.string()),
+        street: v.optional(v.string()),
+        unit: v.optional(v.string()),
+        city: v.optional(v.string()),
+        zip: v.optional(v.string()),
+      })
+    ),
+  },
+  handler: async (ctx, args) => {
+    const now = new Date().toISOString();
+    const existingChildren = await ctx.db.query("children").collect();
+
+    const updated: string[] = [];
+    const addressUpdated: string[] = [];
+    const notFound: string[] = [];
+    const skipped: string[] = [];
+    const errors: string[] = [];
+
+    for (const parentData of args.parents) {
+      try {
+        // Normalize names for matching (trim, lowercase)
+        const childFirst = parentData.childFirstName.trim().toLowerCase();
+        const childLast = parentData.childLastName.trim().toLowerCase();
+
+        // Handle combined names like "Andrea/Isabel" - split and process both
+        const childFirstNames = childFirst.includes("/")
+          ? childFirst.split("/").map((n) => n.trim())
+          : [childFirst];
+
+        for (const firstName of childFirstNames) {
+          // Match by child firstName + lastName
+          const matchedChild = existingChildren.find(
+            (c) =>
+              c.firstName.toLowerCase() === firstName &&
+              c.lastName.toLowerCase() === childLast
+          );
+
+          if (!matchedChild) {
+            notFound.push(`${firstName} ${childLast}`);
+            continue;
+          }
+
+          // Normalize phone number
+          const normalizedPhone = normalizePhone(parentData.parentPhone || "");
+
+          // Check if parent1 already has data (non-empty firstName)
+          const hasParent1Data =
+            matchedChild.parent1 &&
+            matchedChild.parent1.firstName &&
+            matchedChild.parent1.firstName.trim() !== "";
+
+          // Prepare updates
+          const updates: Record<string, any> = {
+            updatedAt: now,
+          };
+
+          if (hasParent1Data) {
+            // Add to parent2 if parent1 is already populated
+            if (
+              !matchedChild.parent2 ||
+              !matchedChild.parent2.firstName ||
+              matchedChild.parent2.firstName.trim() === ""
+            ) {
+              updates.parent2 = {
+                firstName: parentData.parentFirstName.trim(),
+                lastName: parentData.parentLastName.trim(),
+                phone: normalizedPhone,
+              };
+              updated.push(
+                `${matchedChild.firstName} ${matchedChild.lastName} (parent2: ${parentData.parentFirstName})`
+              );
+            } else {
+              skipped.push(
+                `${matchedChild.firstName} ${matchedChild.lastName} (both parents already set)`
+              );
+              continue;
+            }
+          } else {
+            // Set parent1
+            updates.parent1 = {
+              firstName: parentData.parentFirstName.trim(),
+              lastName: parentData.parentLastName.trim(),
+              phone: normalizedPhone,
+            };
+            updated.push(
+              `${matchedChild.firstName} ${matchedChild.lastName} (parent1: ${parentData.parentFirstName})`
+            );
+          }
+
+          // Update address if current city is "Unknown" or zip is empty
+          const currentAddress = matchedChild.homeAddress;
+          const needsAddressUpdate =
+            parentData.city &&
+            currentAddress &&
+            (currentAddress.city === "Unknown" ||
+              currentAddress.city === "" ||
+              !currentAddress.zip);
+
+          if (needsAddressUpdate) {
+            // Combine street and unit
+            let fullStreet = currentAddress.street;
+            if (
+              parentData.street &&
+              parentData.street.trim() &&
+              parentData.street.trim() !== currentAddress.street
+            ) {
+              fullStreet = parentData.unit
+                ? `${parentData.street.trim()} ${parentData.unit.trim()}`
+                : parentData.street.trim();
+            }
+
+            updates.homeAddress = {
+              ...currentAddress,
+              street: fullStreet,
+              city: parentData.city?.trim() || currentAddress.city,
+              zip: parentData.zip?.trim() || currentAddress.zip,
+            };
+            addressUpdated.push(
+              `${matchedChild.firstName} ${matchedChild.lastName}`
+            );
+          }
+
+          // Apply updates
+          await ctx.db.patch(matchedChild._id, updates);
+        }
+      } catch (error: any) {
+        errors.push(
+          `Failed to process ${parentData.childFirstName} ${parentData.childLastName}: ${error.message}`
+        );
+      }
+    }
+
+    return {
+      success: errors.length === 0,
+      parentsLinked: updated.length,
+      addressesUpdated: addressUpdated.length,
+      childrenNotFound: notFound.length,
+      skipped: skipped.length,
+      errors: errors.length,
+      linkedParents: updated,
+      updatedAddresses: addressUpdated,
+      notFoundChildren: notFound,
+      skippedRecords: skipped,
+      errorDetails: errors,
+      message: `Linked ${updated.length} parents to children, updated ${addressUpdated.length} addresses. ${notFound.length} children not found, ${skipped.length} skipped (parents already set).`,
+    };
+  },
+});
+
+/**
+ * Normalize phone number to consistent format
+ * Input: various formats like "(415) 515-9290", "415-200-8434", "925 285 0675"
+ * Output: "(415) 515-9290" format
+ */
+function normalizePhone(phone: string): string {
+  if (!phone) return "";
+
+  // Remove all non-digit characters
+  const digits = phone.replace(/\D/g, "");
+
+  // Handle 10-digit US numbers
+  if (digits.length === 10) {
+    return `(${digits.slice(0, 3)}) ${digits.slice(3, 6)}-${digits.slice(6)}`;
+  }
+
+  // Handle 11-digit numbers (with leading 1)
+  if (digits.length === 11 && digits.startsWith("1")) {
+    return `(${digits.slice(1, 4)}) ${digits.slice(4, 7)}-${digits.slice(7)}`;
+  }
+
+  // Return original if can't normalize
+  return phone.trim();
+}
+
+/**
+ * Get summary of children parent data completeness
+ */
+export const getChildrenParentCompleteness = internalMutation({
+  args: {},
+  handler: async (ctx) => {
+    const children = await ctx.db.query("children").collect();
+
+    const withParent1 = children.filter(
+      (c) => c.parent1 && c.parent1.firstName && c.parent1.firstName.trim() !== ""
+    ).length;
+    const withParent2 = children.filter(
+      (c) => c.parent2 && c.parent2.firstName && c.parent2.firstName.trim() !== ""
+    ).length;
+    const withBothParents = children.filter(
+      (c) =>
+        c.parent1 &&
+        c.parent1.firstName &&
+        c.parent1.firstName.trim() !== "" &&
+        c.parent2 &&
+        c.parent2.firstName &&
+        c.parent2.firstName.trim() !== ""
+    ).length;
+    const withCompleteAddress = children.filter(
+      (c) =>
+        c.homeAddress &&
+        c.homeAddress.city &&
+        c.homeAddress.city !== "Unknown" &&
+        c.homeAddress.zip
+    ).length;
+
+    return {
+      totalChildren: children.length,
+      dataCompleteness: {
+        parent1: {
+          count: withParent1,
+          percent: Math.round((withParent1 / children.length) * 100),
+        },
+        parent2: {
+          count: withParent2,
+          percent: Math.round((withParent2 / children.length) * 100),
+        },
+        bothParents: {
+          count: withBothParents,
+          percent: Math.round((withBothParents / children.length) * 100),
+        },
+        completeAddress: {
+          count: withCompleteAddress,
+          percent: Math.round((withCompleteAddress / children.length) * 100),
+        },
+      },
+    };
+  },
+});
+
+// ============================================================================
+// IMPORT SPECIAL NEEDS / MEDICAL DATA FROM GOOGLE SHEETS
+// ============================================================================
+
+/**
+ * Import special needs, medical info, and transportation requirements for children.
+ * Matches by child firstName + lastName (case-insensitive).
+ * Only updates fields that are currently empty/null in the database.
+ *
+ * Google Sheets columns mapped:
+ * - Home_Lang → homeLanguage
+ * - Prime Handicap → specialNeeds array
+ * - Wheelchair/Walker/Car Seat → medicalInfo.equipmentNeeds
+ * - Disabilty_Details → medicalInfo.medicalConditions
+ * - seizure_protocol → seizureProtocol (Y = true)
+ * - Booster → boosterSeat (Y = true)
+ * - Ryder Type → rideType (SOLO, Carpool, etc.)
+ * - Teacher info → teacher object
+ * - Handoff_Req, Safety Vest, Camera, Ride_Asst → transportationNotes
+ */
+export const importSpecialNeedsFromSheets = internalMutation({
+  args: {
+    records: v.array(
+      v.object({
+        childFirstName: v.string(),
+        childLastName: v.string(),
+        homeLanguage: v.optional(v.string()),
+        primeHandicap: v.optional(v.string()),
+        equipment: v.optional(v.string()),
+        disabilityDetails: v.optional(v.string()),
+        seizureProtocol: v.optional(v.string()),
+        booster: v.optional(v.string()),
+        rideType: v.optional(v.string()),
+        handoffReq: v.optional(v.string()),
+        safetyVest: v.optional(v.string()),
+        camera: v.optional(v.string()),
+        rideAssistant: v.optional(v.string()),
+        teacherFirstName: v.optional(v.string()),
+        teacherLastName: v.optional(v.string()),
+        teacherPhone: v.optional(v.string()),
+      })
+    ),
+  },
+  handler: async (ctx, args) => {
+    const now = new Date().toISOString();
+    const existingChildren = await ctx.db.query("children").collect();
+
+    const updated: string[] = [];
+    const notFound: string[] = [];
+    const skipped: string[] = [];
+    const errors: string[] = [];
+    const fieldsUpdated: Record<string, number> = {};
+
+    for (const record of args.records) {
+      try {
+        // Skip van routes and non-children entries
+        if (
+          record.childFirstName.toLowerCase().includes("van") ||
+          record.childFirstName.toLowerCase().includes("compass") ||
+          record.childFirstName.toLowerCase().includes("canal") ||
+          record.childFirstName.toLowerCase().includes("transit")
+        ) {
+          continue;
+        }
+
+        // Normalize names for matching
+        const childFirst = record.childFirstName.trim().toLowerCase();
+        const childLast = record.childLastName.trim().toLowerCase();
+
+        // Handle combined names like "Andrea/Isabel"
+        const childFirstNames = childFirst.includes("/")
+          ? childFirst.split("/").map((n) => n.trim())
+          : [childFirst];
+
+        for (const firstName of childFirstNames) {
+          // Match by child firstName + lastName
+          const matchedChild = existingChildren.find(
+            (c) =>
+              c.firstName.toLowerCase() === firstName &&
+              c.lastName.toLowerCase() === childLast
+          );
+
+          if (!matchedChild) {
+            if (!notFound.includes(`${firstName} ${childLast}`)) {
+              notFound.push(`${firstName} ${childLast}`);
+            }
+            continue;
+          }
+
+          const updates: Record<string, any> = {};
+          let hasUpdates = false;
+
+          // Update homeLanguage if empty
+          if (
+            record.homeLanguage &&
+            record.homeLanguage.trim() &&
+            (!matchedChild.homeLanguage || matchedChild.homeLanguage === "")
+          ) {
+            updates.homeLanguage = record.homeLanguage.trim();
+            hasUpdates = true;
+            fieldsUpdated.homeLanguage = (fieldsUpdated.homeLanguage || 0) + 1;
+          }
+
+          // Update seizureProtocol if not set
+          if (
+            record.seizureProtocol &&
+            record.seizureProtocol.toUpperCase() === "Y" &&
+            matchedChild.seizureProtocol !== true
+          ) {
+            updates.seizureProtocol = true;
+            hasUpdates = true;
+            fieldsUpdated.seizureProtocol =
+              (fieldsUpdated.seizureProtocol || 0) + 1;
+          }
+
+          // Update boosterSeat if not set
+          if (
+            record.booster &&
+            record.booster.toUpperCase() === "Y" &&
+            matchedChild.boosterSeat !== true
+          ) {
+            updates.boosterSeat = true;
+            hasUpdates = true;
+            fieldsUpdated.boosterSeat = (fieldsUpdated.boosterSeat || 0) + 1;
+          }
+
+          // Update rideType if empty
+          if (
+            record.rideType &&
+            record.rideType.trim() &&
+            (!matchedChild.rideType || matchedChild.rideType === "")
+          ) {
+            // Normalize rideType values
+            const rideTypeNormalized = record.rideType.trim().toUpperCase();
+            if (
+              rideTypeNormalized.includes("SOLO") ||
+              rideTypeNormalized.includes("CARPOOL") ||
+              rideTypeNormalized.includes("VANPOOL") ||
+              rideTypeNormalized.includes("W/C")
+            ) {
+              updates.rideType = rideTypeNormalized.includes("SOLO")
+                ? "SOLO"
+                : rideTypeNormalized.includes("CARPOOL")
+                  ? "SHARED"
+                  : rideTypeNormalized;
+              hasUpdates = true;
+              fieldsUpdated.rideType = (fieldsUpdated.rideType || 0) + 1;
+            }
+          }
+
+          // Build specialNeeds array from primeHandicap
+          if (
+            record.primeHandicap &&
+            record.primeHandicap.trim() &&
+            (!matchedChild.specialNeeds || matchedChild.specialNeeds.length === 0)
+          ) {
+            const specialNeedsArray = parseSpecialNeeds(record.primeHandicap);
+            if (specialNeedsArray.length > 0) {
+              updates.specialNeeds = specialNeedsArray;
+              hasUpdates = true;
+              fieldsUpdated.specialNeeds =
+                (fieldsUpdated.specialNeeds || 0) + 1;
+            }
+          }
+
+          // Build medicalInfo object if we have equipment or disability details
+          const hasEquipment =
+            record.equipment && record.equipment.trim() && record.equipment !== "N" && record.equipment !== "No";
+          const hasDisabilityDetails =
+            record.disabilityDetails && record.disabilityDetails.trim();
+
+          if (
+            (hasEquipment || hasDisabilityDetails) &&
+            (!matchedChild.medicalInfo ||
+              (matchedChild.medicalInfo.equipmentNeeds.length === 0 &&
+                matchedChild.medicalInfo.medicalConditions.length === 0))
+          ) {
+            const equipmentNeeds = hasEquipment
+              ? parseEquipmentNeeds(record.equipment!)
+              : [];
+            const medicalConditions = hasDisabilityDetails
+              ? [record.disabilityDetails!.trim()]
+              : [];
+
+            updates.medicalInfo = {
+              allergies: matchedChild.medicalInfo?.allergies || [],
+              medicalConditions: medicalConditions,
+              equipmentNeeds: equipmentNeeds,
+              emergencyProcedures:
+                matchedChild.medicalInfo?.emergencyProcedures || undefined,
+            };
+            hasUpdates = true;
+            fieldsUpdated.medicalInfo = (fieldsUpdated.medicalInfo || 0) + 1;
+          }
+
+          // Build teacher object if not set
+          if (
+            record.teacherFirstName &&
+            record.teacherFirstName.trim() &&
+            record.teacherLastName &&
+            record.teacherLastName.trim() &&
+            !matchedChild.teacher
+          ) {
+            updates.teacher = {
+              firstName: record.teacherFirstName.trim(),
+              lastName: record.teacherLastName.trim(),
+              phone: record.teacherPhone?.trim() || undefined,
+            };
+            hasUpdates = true;
+            fieldsUpdated.teacher = (fieldsUpdated.teacher || 0) + 1;
+          }
+
+          // Build transportationNotes from various flags
+          const transportNotes: string[] = [];
+          if (record.handoffReq?.toUpperCase() === "Y")
+            transportNotes.push("Special handoff required");
+          if (record.safetyVest?.toUpperCase() === "Y")
+            transportNotes.push("Safety vest/lock required");
+          if (record.camera?.toUpperCase() === "Y")
+            transportNotes.push("Camera monitoring");
+          if (record.rideAssistant?.toUpperCase() === "Y")
+            transportNotes.push("Ride assistant needed");
+
+          if (
+            transportNotes.length > 0 &&
+            (!matchedChild.transportationNotes ||
+              matchedChild.transportationNotes === "")
+          ) {
+            updates.transportationNotes = transportNotes.join("; ");
+            hasUpdates = true;
+            fieldsUpdated.transportationNotes =
+              (fieldsUpdated.transportationNotes || 0) + 1;
+          }
+
+          // Apply updates
+          if (hasUpdates) {
+            updates.updatedAt = now;
+            await ctx.db.patch(matchedChild._id, updates);
+            updated.push(
+              `${matchedChild.firstName} ${matchedChild.lastName}`
+            );
+          } else {
+            skipped.push(
+              `${matchedChild.firstName} ${matchedChild.lastName} (no new data)`
+            );
+          }
+        }
+      } catch (error: any) {
+        errors.push(
+          `Failed to process ${record.childFirstName} ${record.childLastName}: ${error.message}`
+        );
+      }
+    }
+
+    return {
+      success: errors.length === 0,
+      childrenUpdated: updated.length,
+      childrenNotFound: notFound.length,
+      skipped: skipped.length,
+      errors: errors.length,
+      fieldsUpdated,
+      updatedChildren: updated.slice(0, 20), // First 20 for brevity
+      notFoundChildren: notFound.slice(0, 20),
+      errorDetails: errors,
+      message: `Updated ${updated.length} children with special needs data. ${notFound.length} not found, ${skipped.length} skipped (no new data).`,
+    };
+  },
+});
+
+/**
+ * Parse special needs from Prime Handicap column
+ * Examples: "Autism", "LD - NV", "Autism - NV - Extreme Behavior"
+ */
+function parseSpecialNeeds(primeHandicap: string): string[] {
+  const needs: string[] = [];
+  const normalized = primeHandicap.trim();
+
+  // Common patterns to extract
+  if (/autism/i.test(normalized)) needs.push("Autism");
+  if (/\bld\b/i.test(normalized)) needs.push("Learning Disability");
+  if (/\bnv\b|non.?verbal/i.test(normalized)) needs.push("Non-Verbal");
+  if (/behavior/i.test(normalized)) needs.push("Behavioral");
+  if (/extreme/i.test(normalized)) needs.push("Extreme Behavior");
+  if (/deaf|blind/i.test(normalized)) needs.push("Deaf/Blind");
+  if (/homeless/i.test(normalized)) needs.push("Homeless");
+  if (/mobility|handicap|physically/i.test(normalized)) needs.push("Mobility Impaired");
+  if (/depression/i.test(normalized)) needs.push("Mental Health");
+  if (/flight.?risk|runner/i.test(normalized)) needs.push("Flight Risk");
+  if (/cp\b/i.test(normalized)) needs.push("Cerebral Palsy");
+
+  // If no specific matches, use the raw value if it's meaningful
+  if (needs.length === 0 && normalized && normalized !== "None" && normalized !== "N") {
+    needs.push(normalized);
+  }
+
+  return needs;
+}
+
+/**
+ * Parse equipment needs from Wheelchair/Walker/Car Seat column
+ * Examples: "Booster", "Locks", "Wheelchair", "Harness", "Car Seat"
+ */
+function parseEquipmentNeeds(equipment: string): string[] {
+  const needs: string[] = [];
+  const normalized = equipment.trim();
+
+  if (/booster/i.test(normalized)) needs.push("Booster Seat");
+  if (/lock/i.test(normalized)) needs.push("Door Locks");
+  if (/wheelchair|w\/c/i.test(normalized)) needs.push("Wheelchair");
+  if (/harness/i.test(normalized)) needs.push("Harness");
+  if (/car\s?seat/i.test(normalized)) needs.push("Car Seat");
+  if (/walker|cane/i.test(normalized)) needs.push("Walker/Cane");
+  if (/vest/i.test(normalized)) needs.push("Safety Vest");
+  if (/solo/i.test(normalized)) needs.push("Solo Transport Required");
+  if (/aide/i.test(normalized)) needs.push("Aide Required");
+  if (/gate\s?belt/i.test(normalized)) needs.push("Gate Belt");
+
+  // If no specific matches, use the raw value if meaningful
+  if (needs.length === 0 && normalized && normalized !== "N" && normalized !== "No") {
+    needs.push(normalized);
+  }
+
+  return needs;
+}
+
+/**
+ * Get summary of children special needs data completeness
+ */
+export const getChildrenSpecialNeedsCompleteness = internalMutation({
+  args: {},
+  handler: async (ctx) => {
+    const children = await ctx.db.query("children").collect();
+
+    const withHomeLanguage = children.filter(
+      (c) => c.homeLanguage && c.homeLanguage !== ""
+    ).length;
+    const withSpecialNeeds = children.filter(
+      (c) => c.specialNeeds && c.specialNeeds.length > 0
+    ).length;
+    const withMedicalInfo = children.filter(
+      (c) =>
+        c.medicalInfo &&
+        (c.medicalInfo.equipmentNeeds.length > 0 ||
+          c.medicalInfo.medicalConditions.length > 0)
+    ).length;
+    const withSeizureProtocol = children.filter(
+      (c) => c.seizureProtocol === true
+    ).length;
+    const withBoosterSeat = children.filter(
+      (c) => c.boosterSeat === true
+    ).length;
+    const withTeacher = children.filter(
+      (c) => c.teacher && c.teacher.firstName
+    ).length;
+    const withTransportNotes = children.filter(
+      (c) => c.transportationNotes && c.transportationNotes !== ""
+    ).length;
+    const withRideType = children.filter(
+      (c) => c.rideType && c.rideType !== ""
+    ).length;
+
+    return {
+      totalChildren: children.length,
+      dataCompleteness: {
+        homeLanguage: {
+          count: withHomeLanguage,
+          percent: Math.round((withHomeLanguage / children.length) * 100),
+        },
+        specialNeeds: {
+          count: withSpecialNeeds,
+          percent: Math.round((withSpecialNeeds / children.length) * 100),
+        },
+        medicalInfo: {
+          count: withMedicalInfo,
+          percent: Math.round((withMedicalInfo / children.length) * 100),
+        },
+        seizureProtocol: {
+          count: withSeizureProtocol,
+          percent: Math.round((withSeizureProtocol / children.length) * 100),
+        },
+        boosterSeat: {
+          count: withBoosterSeat,
+          percent: Math.round((withBoosterSeat / children.length) * 100),
+        },
+        teacher: {
+          count: withTeacher,
+          percent: Math.round((withTeacher / children.length) * 100),
+        },
+        transportationNotes: {
+          count: withTransportNotes,
+          percent: Math.round((withTransportNotes / children.length) * 100),
+        },
+        rideType: {
+          count: withRideType,
+          percent: Math.round((withRideType / children.length) * 100),
+        },
+      },
+    };
+  },
+});
+
 /**
  * Get summary of driver data completeness
  */
