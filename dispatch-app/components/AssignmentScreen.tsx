@@ -16,7 +16,10 @@ import {
   TouchableOpacity,
   ActivityIndicator,
   Alert,
-  Platform
+  Platform,
+  Modal,
+  TextInput,
+  Pressable,
 } from 'react-native';
 import {
   useRoutesForDatePeriod,
@@ -44,6 +47,13 @@ export default function AssignmentScreen({ date }: AssignmentScreenProps) {
   // CARPOOL STATE: Track temporary carpool groupings before "Done" button click
   // Map<driverId, childIds[]> - max 3 children per driver
   const [driverCarpools, setDriverCarpools] = useState<Map<string, string[]>>(new Map());
+
+  // SET RATE MODAL STATE: Track modal visibility and rate adjustments
+  const [rateModalVisible, setRateModalVisible] = useState(false);
+  const [rateModalDriverId, setRateModalDriverId] = useState<string | null>(null);
+  // Map<childId, rateAdjustment> - stores bonus amount per child (default 0)
+  const [childRates, setChildRates] = useState<Map<string, number>>(new Map());
+  const BASE_RATE = 25; // Base rate per child in dollars
 
   // Drop zone tracking for drag-and-drop
   const [dropZones, setDropZones] = useState<Map<string, {
@@ -338,35 +348,80 @@ export default function AssignmentScreen({ date }: AssignmentScreenProps) {
     });
   };
 
+  // SET RATE: Open modal to adjust rates before finalizing routes
+  const handleSetRateClick = (driverId: string) => {
+    const childIds = driverCarpools.get(driverId);
+    if (!childIds || childIds.length === 0) {
+      return;
+    }
+
+    // Initialize rates for each child (default 0 bonus)
+    const initialRates = new Map<string, number>();
+    childIds.forEach(childId => {
+      initialRates.set(childId, 0);
+    });
+    setChildRates(initialRates);
+    setRateModalDriverId(driverId);
+    setRateModalVisible(true);
+  };
+
+  // Update rate adjustment for a specific child
+  const handleRateChange = (childId: string, adjustment: number) => {
+    setChildRates(prev => {
+      const updated = new Map(prev);
+      updated.set(childId, adjustment);
+      return updated;
+    });
+  };
+
   // CARPOOL: Finalize carpool by creating individual route records
   // Each child gets their own route record with same driverId/date/period
   // Driver App will detect this as a carpool automatically
-  const handleDoneClick = async (driverId: string) => {
-    const childIds = driverCarpools.get(driverId);
+  const handleConfirmRoutes = async () => {
+    if (!rateModalDriverId) return;
+
+    const childIds = driverCarpools.get(rateModalDriverId);
     if (!childIds || childIds.length === 0) {
+      setRateModalVisible(false);
       return;
     }
 
     try {
       // Create one route per child (carpool pattern)
       for (const childId of childIds) {
+        const rateAdjustment = childRates.get(childId) || 0;
+        const totalRate = BASE_RATE + rateAdjustment;
+
         await createRoute({
           date,
           period: activePeriod,
           childId: childId as any,
-          driverId: driverId as any,
+          driverId: rateModalDriverId as any,
           status: 'assigned',
+          // TODO: Store rate in route when schema supports it
+          // rate: totalRate,
+          // rateAdjustment: rateAdjustment,
         });
       }
 
       // Clear carpool state for this driver
       setDriverCarpools(prev => {
         const updated = new Map(prev);
-        updated.delete(driverId);
+        updated.delete(rateModalDriverId);
         return updated;
       });
 
-      Alert.alert('Success', `Carpool created with ${childIds.length} children!`, [{ text: 'OK' }]);
+      // Close modal and reset state
+      setRateModalVisible(false);
+      setRateModalDriverId(null);
+      setChildRates(new Map());
+
+      const totalBonus = Array.from(childRates.values()).reduce((sum, adj) => sum + adj, 0);
+      const message = totalBonus > 0
+        ? `Routes created with $${totalBonus} bonus applied!`
+        : `Carpool created with ${childIds.length} children!`;
+
+      Alert.alert('Success', message, [{ text: 'OK' }]);
     } catch (error: any) {
       const errorMsg = error.message || 'Failed to create carpool';
 
@@ -381,6 +436,13 @@ export default function AssignmentScreen({ date }: AssignmentScreenProps) {
         Alert.alert('Error', errorMsg);
       }
     }
+  };
+
+  // Cancel and close the rate modal
+  const handleCancelRateModal = () => {
+    setRateModalVisible(false);
+    setRateModalDriverId(null);
+    setChildRates(new Map());
   };
 
   // Loading state
@@ -562,12 +624,12 @@ export default function AssignmentScreen({ date }: AssignmentScreenProps) {
                                 );
                               })}
 
-                              {/* CARPOOL: Done Button */}
+                              {/* SET RATE: Opens modal to adjust rates before finalizing routes */}
                               <TouchableOpacity
                                 style={styles.carpoolDoneButton}
-                                onPress={() => handleDoneClick(driver._id)}
+                                onPress={() => handleSetRateClick(driver._id)}
                               >
-                                <Text style={styles.carpoolDoneButtonText}>✓ Done</Text>
+                                <Text style={styles.carpoolDoneButtonText}>💰 Set Rate</Text>
                               </TouchableOpacity>
                             </View>
                           )}
@@ -761,7 +823,127 @@ export default function AssignmentScreen({ date }: AssignmentScreenProps) {
         )}
       </View>
       </ScrollView>
-      
+
+      {/* SET RATE MODAL - Lightbox with greyed backdrop for rate adjustments */}
+      <Modal
+        visible={rateModalVisible}
+        transparent={true}
+        animationType="fade"
+        onRequestClose={handleCancelRateModal}
+      >
+        <Pressable
+          style={styles.modalOverlay}
+          onPress={handleCancelRateModal}
+        >
+          <Pressable
+            style={styles.modalContent}
+            onPress={(e) => e.stopPropagation()}
+          >
+            {/* Modal Header */}
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>💰 Set Pay Rates</Text>
+              <TouchableOpacity
+                style={styles.modalCloseButton}
+                onPress={handleCancelRateModal}
+              >
+                <Text style={styles.modalCloseText}>✕</Text>
+              </TouchableOpacity>
+            </View>
+
+            {/* Driver Info */}
+            {rateModalDriverId && (
+              <View style={styles.modalDriverInfo}>
+                <Text style={styles.modalDriverLabel}>Driver:</Text>
+                <Text style={styles.modalDriverName}>
+                  {unassignedDrivers?.find(d => d._id === rateModalDriverId)?.firstName || ''}{' '}
+                  {unassignedDrivers?.find(d => d._id === rateModalDriverId)?.lastName || 'Selected Driver'}
+                </Text>
+              </View>
+            )}
+
+            {/* Rate Adjustment Section */}
+            <View style={styles.modalRateSection}>
+              <Text style={styles.modalSectionTitle}>Adjust Rates by Child</Text>
+              <Text style={styles.modalSectionSubtitle}>
+                Base rate: ${BASE_RATE}/child • Add bonus for difficult routes
+              </Text>
+
+              {/* Child Rate Cards */}
+              <ScrollView style={styles.modalChildList}>
+                {rateModalDriverId && driverCarpools.get(rateModalDriverId)?.map(childId => {
+                  const child = unassignedChildren?.find(c => c._id === childId);
+                  const adjustment = childRates.get(childId) || 0;
+                  const totalRate = BASE_RATE + adjustment;
+
+                  return (
+                    <View key={childId} style={styles.modalChildCard}>
+                      <View style={styles.modalChildInfo}>
+                        <Text style={styles.modalChildName}>
+                          👧 {child?.firstName || ''} {child?.lastName || 'Child'}
+                        </Text>
+                        {child?.specialNeeds && child.specialNeeds.length > 0 && (
+                          <Text style={styles.modalChildNeeds}>
+                            ⚠️ {child.specialNeeds.join(', ')}
+                          </Text>
+                        )}
+                      </View>
+
+                      {/* Rate Adjustment Controls */}
+                      <View style={styles.modalRateControls}>
+                        <TouchableOpacity
+                          style={styles.modalRateButton}
+                          onPress={() => handleRateChange(childId, Math.max(0, adjustment - 5))}
+                        >
+                          <Text style={styles.modalRateButtonText}>−</Text>
+                        </TouchableOpacity>
+
+                        <View style={styles.modalRateDisplay}>
+                          <Text style={styles.modalRateValue}>${totalRate}</Text>
+                          {adjustment > 0 && (
+                            <Text style={styles.modalRateBonus}>+${adjustment}</Text>
+                          )}
+                        </View>
+
+                        <TouchableOpacity
+                          style={styles.modalRateButton}
+                          onPress={() => handleRateChange(childId, adjustment + 5)}
+                        >
+                          <Text style={styles.modalRateButtonText}>+</Text>
+                        </TouchableOpacity>
+                      </View>
+                    </View>
+                  );
+                })}
+              </ScrollView>
+
+              {/* Total Summary */}
+              <View style={styles.modalTotalSection}>
+                <Text style={styles.modalTotalLabel}>Total for this route:</Text>
+                <Text style={styles.modalTotalValue}>
+                  ${Array.from(childRates.values()).reduce((sum, adj) => sum + BASE_RATE + adj, 0)}
+                </Text>
+              </View>
+            </View>
+
+            {/* Action Buttons */}
+            <View style={styles.modalActions}>
+              <TouchableOpacity
+                style={styles.modalCancelButton}
+                onPress={handleCancelRateModal}
+              >
+                <Text style={styles.modalCancelText}>Cancel</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={styles.modalConfirmButton}
+                onPress={handleConfirmRoutes}
+              >
+                <Text style={styles.modalConfirmText}>✓ Confirm Routes</Text>
+              </TouchableOpacity>
+            </View>
+          </Pressable>
+        </Pressable>
+      </Modal>
+
       {/* Drag Overlay - renders at root level to float above all UI */}
       <DragOverlay
         isDragging={dragState.isDragging}
@@ -1255,6 +1437,192 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: '#666',
     marginLeft: 8,
+  },
+  // SET RATE MODAL STYLES
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.6)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 20,
+  },
+  modalContent: {
+    backgroundColor: '#fff',
+    borderRadius: 16,
+    width: '100%',
+    maxWidth: 400,
+    maxHeight: '80%',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.3,
+    shadowRadius: 20,
+    elevation: 10,
+  },
+  modalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    padding: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: '#E0E0E0',
+    backgroundColor: '#F5F5F5',
+    borderTopLeftRadius: 16,
+    borderTopRightRadius: 16,
+  },
+  modalTitle: {
+    fontSize: 20,
+    fontWeight: '700',
+    color: '#333',
+  },
+  modalCloseButton: {
+    padding: 4,
+  },
+  modalCloseText: {
+    fontSize: 20,
+    color: '#666',
+  },
+  modalDriverInfo: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 12,
+    backgroundColor: '#E3F2FD',
+    borderBottomWidth: 1,
+    borderBottomColor: '#BBDEFB',
+  },
+  modalDriverLabel: {
+    fontSize: 14,
+    color: '#1565C0',
+    marginRight: 8,
+  },
+  modalDriverName: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#0D47A1',
+  },
+  modalRateSection: {
+    padding: 16,
+  },
+  modalSectionTitle: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#333',
+    marginBottom: 4,
+  },
+  modalSectionSubtitle: {
+    fontSize: 12,
+    color: '#666',
+    marginBottom: 12,
+  },
+  modalChildList: {
+    maxHeight: 200,
+  },
+  modalChildCard: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    padding: 12,
+    marginBottom: 8,
+    backgroundColor: '#FFF8E1',
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#FFE082',
+  },
+  modalChildInfo: {
+    flex: 1,
+    marginRight: 12,
+  },
+  modalChildName: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#333',
+  },
+  modalChildNeeds: {
+    fontSize: 11,
+    color: '#F57C00',
+    marginTop: 2,
+  },
+  modalRateControls: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  modalRateButton: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: '#E0E0E0',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  modalRateButtonText: {
+    fontSize: 24,
+    fontWeight: '600',
+    color: '#333',
+    lineHeight: 28,
+  },
+  modalRateDisplay: {
+    alignItems: 'center',
+    minWidth: 60,
+  },
+  modalRateValue: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: '#2E7D32',
+  },
+  modalRateBonus: {
+    fontSize: 11,
+    color: '#4CAF50',
+    fontWeight: '600',
+  },
+  modalTotalSection: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginTop: 12,
+    paddingTop: 12,
+    borderTopWidth: 1,
+    borderTopColor: '#E0E0E0',
+  },
+  modalTotalLabel: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#333',
+  },
+  modalTotalValue: {
+    fontSize: 24,
+    fontWeight: '700',
+    color: '#2E7D32',
+  },
+  modalActions: {
+    flexDirection: 'row',
+    padding: 16,
+    borderTopWidth: 1,
+    borderTopColor: '#E0E0E0',
+    gap: 12,
+  },
+  modalCancelButton: {
+    flex: 1,
+    paddingVertical: 12,
+    borderRadius: 8,
+    backgroundColor: '#F5F5F5',
+    alignItems: 'center',
+  },
+  modalCancelText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#666',
+  },
+  modalConfirmButton: {
+    flex: 2,
+    paddingVertical: 12,
+    borderRadius: 8,
+    backgroundColor: '#4CAF50',
+    alignItems: 'center',
+  },
+  modalConfirmText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#fff',
   },
 });
 
