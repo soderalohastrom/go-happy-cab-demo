@@ -447,3 +447,170 @@ export const getSchoolByName = query({
         return school || null;
     },
 });
+
+// ============================================================================
+// NON-SCHOOL DAYS MANAGEMENT
+// Used for data import/cleanup operations
+// ============================================================================
+
+/**
+ * Delete non-school days for a specific month and year across all schools
+ * Used for: Data cleanup before re-importing corrected dates
+ */
+export const deleteNonSchoolDaysByMonth = mutation({
+    args: {
+        year: v.number(),
+        month: v.number(), // 1-12
+    },
+    handler: async (ctx, args) => {
+        const { year, month } = args;
+        const monthStr = month.toString().padStart(2, '0');
+        const datePrefix = `${year}-${monthStr}`;
+
+        // Get all non-school days
+        const allDays = await ctx.db.query("nonSchoolDays").collect();
+
+        // Filter to those matching the month prefix
+        const toDelete = allDays.filter(day => day.date.startsWith(datePrefix));
+
+        let deletedCount = 0;
+        for (const day of toDelete) {
+            await ctx.db.delete(day._id);
+            deletedCount++;
+        }
+
+        return { deletedCount, datePrefix };
+    },
+});
+
+/**
+ * Normalize school name for fuzzy matching.
+ * Handles common variations between Google Sheets and Convex naming:
+ * - Missing "School" suffix (e.g., "Bacich Elementary" → "Bacich Elementary School")
+ * - Missing apostrophes (e.g., "Marins" → "Marin's")
+ * - Prefix variations (e.g., "Cypress School" → "UCPNB Cypress School")
+ * - Type variations (e.g., "Bayhill Academy" → "Bayhill High School")
+ * - Abbreviations (e.g., "Headlands Prepartory School" → "Headlands Prep")
+ * - Suffix variations (e.g., "Marindale School AM Class" → "Marindale School")
+ */
+function normalizeSchoolName(name: string): string {
+    return name
+        .toLowerCase()
+        .replace(/[']/g, "")           // Remove apostrophes
+        .replace(/\s+/g, " ")          // Normalize whitespace
+        .replace(/ am class$/i, "")    // Remove "AM Class" suffix
+        .replace(/ school(\s|$)/gi, " ") // Remove "School" anywhere (not just end)
+        .replace(/ elementary(\s|$)/gi, " ") // Remove "Elementary"
+        .replace(/ middle(\s|$)/gi, " ")     // Remove "Middle"
+        .replace(/ high(\s|$)/gi, " ")       // Remove "High"
+        .replace(/ academy(\s|$)/gi, " ")    // Remove "Academy"
+        .replace(/ prep(\s|$)/gi, " ")       // Remove "Prep"
+        .replace(/^ucpnb /i, "")       // Remove UCPNB prefix
+        .replace(/prepartory/i, "prep") // Fix typo: "Prepartory" → "Prep"
+        .replace(/\s+/g, " ")          // Normalize whitespace again
+        .trim();
+}
+
+/**
+ * Find best matching school by name using fuzzy matching.
+ * First tries exact match, then normalized match.
+ */
+async function findSchoolByFuzzyName(
+    ctx: any,
+    inputName: string
+): Promise<{ _id: any; schoolName: string } | null> {
+    // 1. Try exact match first (fastest)
+    const exactMatch = await ctx.db
+        .query("schools")
+        .withIndex("by_school_name", (q: any) => q.eq("schoolName", inputName))
+        .first();
+    if (exactMatch) return exactMatch;
+
+    // 2. Normalize input and search all schools for best match
+    const normalizedInput = normalizeSchoolName(inputName);
+    const allSchools = await ctx.db.query("schools").collect();
+
+    for (const school of allSchools) {
+        const normalizedDb = normalizeSchoolName(school.schoolName);
+
+        // Check if normalized names match
+        if (normalizedDb === normalizedInput) {
+            return school;
+        }
+
+        // Check if one contains the other (handles prefix/suffix variations)
+        if (normalizedDb.includes(normalizedInput) || normalizedInput.includes(normalizedDb)) {
+            // Verify it's a reasonable match (not too short)
+            const shorter = normalizedInput.length < normalizedDb.length ? normalizedInput : normalizedDb;
+            if (shorter.length >= 5) {
+                return school;
+            }
+        }
+    }
+
+    return null;
+}
+
+/**
+ * Bulk import non-school days with upsert behavior
+ * Replaces existing entries if they exist, otherwise inserts new ones
+ * Uses fuzzy name matching to handle Sheet ↔ Convex naming variations
+ */
+export const upsertNonSchoolDays = mutation({
+    args: {
+        days: v.array(v.object({
+            schoolName: v.string(),
+            date: v.string(), // YYYY-MM-DD format
+            description: v.optional(v.string()),
+        })),
+    },
+    handler: async (ctx, args) => {
+        let insertedCount = 0;
+        let updatedCount = 0;
+        let skippedCount = 0;
+        const matchedNames: Record<string, string> = {}; // Track Sheet→Convex mappings
+
+        for (const dayData of args.days) {
+            // Find school by fuzzy name matching
+            const school = await findSchoolByFuzzyName(ctx, dayData.schoolName);
+
+            if (!school) {
+                console.warn(`School not found: ${dayData.schoolName}`);
+                skippedCount++;
+                continue;
+            }
+
+            // Log the match if it's not exact (for debugging)
+            if (school.schoolName !== dayData.schoolName && !matchedNames[dayData.schoolName]) {
+                matchedNames[dayData.schoolName] = school.schoolName;
+                console.log(`Matched: "${dayData.schoolName}" → "${school.schoolName}"`);
+            }
+
+            // Check for existing entry
+            const existing = await ctx.db
+                .query("nonSchoolDays")
+                .withIndex("by_school_date", (q) =>
+                    q.eq("schoolId", school._id).eq("date", dayData.date)
+                )
+                .first();
+
+            if (existing) {
+                // Update existing
+                await ctx.db.patch(existing._id, {
+                    description: dayData.description,
+                });
+                updatedCount++;
+            } else {
+                // Insert new
+                await ctx.db.insert("nonSchoolDays", {
+                    schoolId: school._id,
+                    date: dayData.date,
+                    description: dayData.description,
+                });
+                insertedCount++;
+            }
+        }
+
+        return { insertedCount, updatedCount, skippedCount };
+    },
+});
