@@ -844,6 +844,21 @@ export default defineSchema({
     .index("by_school_date", ["schoolId", "date"]),
 
   /**
+   * Early Out Days - Specific early dismissal dates
+   * Used for: Time resolution when PM routes have adjusted pickup times
+   * Import from: Google Sheets or manual entry in Convex Dashboard
+   */
+  earlyOutDays: defineTable({
+    schoolId: v.id("schools"),
+    date: v.string(), // YYYY-MM-DD
+    dismissalTime: v.string(), // e.g., "12:30 PM"
+    reason: v.optional(v.string()), // e.g., "Staff Development", "Parent Conference"
+  })
+    .index("by_school", ["schoolId"])
+    .index("by_date", ["date"])
+    .index("by_school_date", ["schoolId", "date"]),
+
+  /**
    * Payroll Configuration - Pay rates and deductions
    * NEW TABLE for payroll reporting feature
    */

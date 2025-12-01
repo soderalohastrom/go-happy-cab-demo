@@ -614,3 +614,416 @@ export const upsertNonSchoolDays = mutation({
         return { insertedCount, updatedCount, skippedCount };
     },
 });
+
+// ============================================================================
+// ROUTE SCHEDULING - Time Resolution & Validation
+// Used for accurate pickup/dropoff times in Driver App
+// ============================================================================
+
+/**
+ * Check if a specific date is a non-school day for a given school
+ * Used by: Route creation validation in assignments.ts
+ * Returns: null if school is open, or closure info if closed
+ */
+export const checkNonSchoolDay = query({
+    args: {
+        schoolId: v.id("schools"),
+        date: v.string(), // YYYY-MM-DD
+    },
+    handler: async (ctx, args) => {
+        const { schoolId, date } = args;
+
+        const nonSchoolDay = await ctx.db
+            .query("nonSchoolDays")
+            .withIndex("by_school_date", (q) =>
+                q.eq("schoolId", schoolId).eq("date", date)
+            )
+            .first();
+
+        if (!nonSchoolDay) {
+            return null; // School is open
+        }
+
+        // Get school name for better error messages
+        const school = await ctx.db.get(schoolId);
+
+        return {
+            isClosed: true,
+            description: nonSchoolDay.description || "School Closed",
+            schoolName: school?.schoolName || "Unknown School",
+            date,
+        };
+    },
+});
+
+/**
+ * Check non-school day by school name (for child lookups)
+ * Used by: Driver App and Dispatch App when childId is available
+ */
+export const checkNonSchoolDayByName = query({
+    args: {
+        schoolName: v.string(),
+        date: v.string(), // YYYY-MM-DD
+    },
+    handler: async (ctx, args) => {
+        const { schoolName, date } = args;
+
+        // Find school by name
+        const school = await ctx.db
+            .query("schools")
+            .withIndex("by_school_name", (q) => q.eq("schoolName", schoolName))
+            .first();
+
+        if (!school) {
+            return { error: "School not found" };
+        }
+
+        const nonSchoolDay = await ctx.db
+            .query("nonSchoolDays")
+            .withIndex("by_school_date", (q) =>
+                q.eq("schoolId", school._id).eq("date", date)
+            )
+            .first();
+
+        if (!nonSchoolDay) {
+            return null; // School is open
+        }
+
+        return {
+            isClosed: true,
+            description: nonSchoolDay.description || "School Closed",
+            schoolName: school.schoolName,
+            date,
+        };
+    },
+});
+
+/**
+ * Get effective pickup/dropoff time for a child on a specific date
+ * Resolves time based on: Early Out Days > Minimum Days > Regular Schedule
+ * Used by: Driver App for accurate time display
+ */
+export const getEffectivePickupTime = query({
+    args: {
+        childId: v.id("children"),
+        date: v.string(), // YYYY-MM-DD
+        period: v.union(v.literal("AM"), v.literal("PM")),
+    },
+    handler: async (ctx, args) => {
+        const { childId, date, period } = args;
+
+        // Get child data
+        const child = await ctx.db.get(childId);
+        if (!child) {
+            return { error: "Child not found" };
+        }
+
+        // Find school by name
+        const school = await ctx.db
+            .query("schools")
+            .withIndex("by_school_name", (q) => q.eq("schoolName", child.schoolName))
+            .first();
+
+        if (!school) {
+            // Fallback to child's time if no school found
+            return {
+                time: period === "AM" ? child.pickupTime : child.classEndTime,
+                source: "child_record",
+                adjustment: null,
+            };
+        }
+
+        // Get school schedule
+        const schedule = await ctx.db
+            .query("schoolSchedules")
+            .withIndex("by_school", (q) => q.eq("schoolId", school._id))
+            .first();
+
+        // Check for non-school day
+        const nonSchoolDay = await ctx.db
+            .query("nonSchoolDays")
+            .withIndex("by_school_date", (q) =>
+                q.eq("schoolId", school._id).eq("date", date)
+            )
+            .first();
+
+        if (nonSchoolDay) {
+            return {
+                time: null,
+                source: "non_school_day",
+                adjustment: nonSchoolDay.description || "School Closed",
+                isClosed: true,
+            };
+        }
+
+        // For AM routes, use child's pickup time or school start time
+        if (period === "AM") {
+            return {
+                time: child.pickupTime || (schedule ? calculatePickupFromStart(schedule.amStartTime) : null),
+                source: child.pickupTime ? "child_record" : "school_schedule",
+                adjustment: null,
+            };
+        }
+
+        // For PM routes, check early out days first
+        const earlyOut = await ctx.db
+            .query("earlyOutDays")
+            .withIndex("by_school_date", (q) =>
+                q.eq("schoolId", school._id).eq("date", date)
+            )
+            .first();
+
+        if (earlyOut) {
+            return {
+                time: earlyOut.dismissalTime,
+                source: "early_out_day",
+                adjustment: earlyOut.reason || "Early Release",
+            };
+        }
+
+        // Check for minimum day (check day of week against schedule)
+        if (schedule?.minimumDays && schedule.minDayDismissalTime) {
+            const dayOfWeek = new Date(date).getDay();
+            const dayNames = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
+            const dayName = dayNames[dayOfWeek];
+
+            // Check if this day is a minimum day
+            const minimumDays = schedule.minimumDays.toLowerCase();
+            if (
+                minimumDays.includes(dayName.toLowerCase()) ||
+                minimumDays.includes("every") ||
+                (minimumDays === "varies" && dayOfWeek === 5) // Assume Friday for "Varies"
+            ) {
+                return {
+                    time: schedule.minDayDismissalTime,
+                    source: "minimum_day",
+                    adjustment: "Minimum Day",
+                };
+            }
+        }
+
+        // Check for weekly early release (e.g., "Every Wed 2:00 PM")
+        if (schedule?.earlyRelease) {
+            const dayOfWeek = new Date(date).getDay();
+            const dayNames = ["sun", "mon", "tue", "wed", "thu", "fri", "sat"];
+            const shortDay = dayNames[dayOfWeek];
+
+            const earlyRelease = schedule.earlyRelease.toLowerCase();
+            if (earlyRelease.includes(shortDay) || earlyRelease.includes("every")) {
+                // Extract time from earlyRelease string (e.g., "Every Wed 2:00 PM" → "2:00 PM")
+                const timeMatch = schedule.earlyRelease.match(/(\d{1,2}:\d{2}\s*(?:AM|PM))/i);
+                if (timeMatch) {
+                    return {
+                        time: timeMatch[1],
+                        source: "weekly_early_release",
+                        adjustment: "Early Release",
+                    };
+                }
+            }
+        }
+
+        // Default: Use child's classEndTime or school's pmReleaseTime
+        return {
+            time: child.classEndTime || schedule?.pmReleaseTime || null,
+            source: child.classEndTime ? "child_record" : "school_schedule",
+            adjustment: null,
+        };
+    },
+});
+
+/**
+ * Helper: Calculate pickup time from school start (30 min before)
+ */
+function calculatePickupFromStart(amStartTime: string): string | null {
+    if (!amStartTime) return null;
+
+    try {
+        // Parse time like "8:45 AM"
+        const match = amStartTime.match(/(\d{1,2}):(\d{2})\s*(AM|PM)/i);
+        if (!match) return amStartTime;
+
+        let hours = parseInt(match[1]);
+        const minutes = parseInt(match[2]);
+        const meridiem = match[3].toUpperCase();
+
+        // Convert to 24-hour
+        if (meridiem === "PM" && hours !== 12) hours += 12;
+        if (meridiem === "AM" && hours === 12) hours = 0;
+
+        // Subtract 30 minutes for pickup
+        let pickupMinutes = minutes - 30;
+        let pickupHours = hours;
+        if (pickupMinutes < 0) {
+            pickupMinutes += 60;
+            pickupHours -= 1;
+        }
+
+        // Convert back to 12-hour
+        const pickupMeridiem = pickupHours >= 12 ? "PM" : "AM";
+        const displayHours = pickupHours % 12 || 12;
+
+        return `${displayHours}:${pickupMinutes.toString().padStart(2, "0")} ${pickupMeridiem}`;
+    } catch {
+        return amStartTime;
+    }
+}
+
+// ============================================================================
+// EARLY OUT DAYS MANAGEMENT
+// Used for data import/cleanup operations
+// ============================================================================
+
+/**
+ * Upsert early out days with fuzzy school name matching
+ * Used for: Bulk import from Google Sheets
+ */
+export const upsertEarlyOutDays = mutation({
+    args: {
+        days: v.array(v.object({
+            schoolName: v.string(),
+            date: v.string(), // YYYY-MM-DD format
+            dismissalTime: v.string(), // e.g., "12:30 PM"
+            reason: v.optional(v.string()),
+        })),
+    },
+    handler: async (ctx, args) => {
+        let insertedCount = 0;
+        let updatedCount = 0;
+        let skippedCount = 0;
+        const matchedNames: Record<string, string> = {};
+
+        for (const dayData of args.days) {
+            // Find school by fuzzy name matching
+            const school = await findSchoolByFuzzyName(ctx, dayData.schoolName);
+
+            if (!school) {
+                console.warn(`School not found: ${dayData.schoolName}`);
+                skippedCount++;
+                continue;
+            }
+
+            // Log the match if not exact
+            if (school.schoolName !== dayData.schoolName && !matchedNames[dayData.schoolName]) {
+                matchedNames[dayData.schoolName] = school.schoolName;
+                console.log(`Matched: "${dayData.schoolName}" → "${school.schoolName}"`);
+            }
+
+            // Check for existing entry
+            const existing = await ctx.db
+                .query("earlyOutDays")
+                .withIndex("by_school_date", (q) =>
+                    q.eq("schoolId", school._id).eq("date", dayData.date)
+                )
+                .first();
+
+            if (existing) {
+                // Update existing
+                await ctx.db.patch(existing._id, {
+                    dismissalTime: dayData.dismissalTime,
+                    reason: dayData.reason,
+                });
+                updatedCount++;
+            } else {
+                // Insert new
+                await ctx.db.insert("earlyOutDays", {
+                    schoolId: school._id,
+                    date: dayData.date,
+                    dismissalTime: dayData.dismissalTime,
+                    reason: dayData.reason,
+                });
+                insertedCount++;
+            }
+        }
+
+        return { insertedCount, updatedCount, skippedCount, matchedNames };
+    },
+});
+
+/**
+ * Delete early out days for a specific month and year
+ * Used for: Data cleanup before re-importing corrected dates
+ */
+export const deleteEarlyOutDaysByMonth = mutation({
+    args: {
+        year: v.number(),
+        month: v.number(), // 1-12
+    },
+    handler: async (ctx, args) => {
+        const { year, month } = args;
+        const monthStr = month.toString().padStart(2, '0');
+        const datePrefix = `${year}-${monthStr}`;
+
+        // Get all early out days
+        const allDays = await ctx.db.query("earlyOutDays").collect();
+
+        // Filter to those matching the month prefix
+        const toDelete = allDays.filter(day => day.date.startsWith(datePrefix));
+
+        let deletedCount = 0;
+        for (const day of toDelete) {
+            await ctx.db.delete(day._id);
+            deletedCount++;
+        }
+
+        return { deletedCount, datePrefix };
+    },
+});
+
+/**
+ * Get all early out days for a specific school
+ * Used for: School schedule view in Dispatch App
+ */
+export const getEarlyOutDaysForSchool = query({
+    args: {
+        schoolId: v.id("schools"),
+    },
+    handler: async (ctx, args) => {
+        const days = await ctx.db
+            .query("earlyOutDays")
+            .withIndex("by_school", (q) => q.eq("schoolId", args.schoolId))
+            .collect();
+
+        return days.sort((a, b) => a.date.localeCompare(b.date));
+    },
+});
+
+/**
+ * Get all scheduling data for a date (non-school days + early outs)
+ * Used for: Driver App route cards - bulk lookup
+ */
+export const getSchedulingDataForDate = query({
+    args: {
+        date: v.string(), // YYYY-MM-DD
+    },
+    handler: async (ctx, args) => {
+        const { date } = args;
+
+        // Get all non-school days for this date
+        const nonSchoolDays = await ctx.db
+            .query("nonSchoolDays")
+            .withIndex("by_date", (q) => q.eq("date", date))
+            .collect();
+
+        // Get all early out days for this date
+        const earlyOutDays = await ctx.db
+            .query("earlyOutDays")
+            .withIndex("by_date", (q) => q.eq("date", date))
+            .collect();
+
+        // Convert to lookup maps by schoolId
+        const closedSchools: Record<string, string> = {};
+        for (const day of nonSchoolDays) {
+            closedSchools[day.schoolId] = day.description || "School Closed";
+        }
+
+        const earlyDismissals: Record<string, { time: string; reason: string }> = {};
+        for (const day of earlyOutDays) {
+            earlyDismissals[day.schoolId] = {
+                time: day.dismissalTime,
+                reason: day.reason || "Early Release",
+            };
+        }
+
+        return { closedSchools, earlyDismissals, date };
+    },
+});

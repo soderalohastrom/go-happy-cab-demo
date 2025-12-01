@@ -280,6 +280,49 @@ export const create = mutation({
     const child = await ctx.db.get(args.childId);
     const driver = await ctx.db.get(args.driverId);
 
+    // NON-SCHOOL DAY CHECK: Warn if creating route on a school closure
+    // This is a soft validation - allows creation but logs warning
+    if (child?.schoolName) {
+      const school = await ctx.db
+        .query("schools")
+        .withIndex("by_school_name", (q) => q.eq("schoolName", child.schoolName))
+        .first();
+
+      if (school) {
+        const nonSchoolDay = await ctx.db
+          .query("nonSchoolDays")
+          .withIndex("by_school_date", (q) =>
+            q.eq("schoolId", school._id).eq("date", args.date)
+          )
+          .first();
+
+        if (nonSchoolDay) {
+          // Log warning but still allow creation
+          // Dispatch may intentionally create routes for special circumstances
+          console.warn(
+            `WARNING: Route created on non-school day for ${child.firstName} ${child.lastName} ` +
+            `at ${school.schoolName} on ${args.date} (${nonSchoolDay.description || "School Closed"})`
+          );
+
+          // Create audit log entry for the warning
+          await ctx.db.insert("auditLogs", createAuditLog(
+            "warning",
+            "route",
+            "pending",
+            {
+              description: `Route created on non-school day: ${nonSchoolDay.description || "School Closed"}`,
+              date: args.date,
+              period: args.period,
+              childName: `${child.firstName} ${child.lastName}`,
+              schoolName: school.schoolName,
+              closureReason: nonSchoolDay.description,
+            },
+            args.user
+          ));
+        }
+      }
+    }
+
     // Create the assignment
     const assignmentId = await ctx.db.insert("routes", {
       date: args.date,
