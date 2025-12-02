@@ -1175,3 +1175,163 @@ export const getSchedulingDataForDate = query({
         return { closedSchools, earlyDismissals, date };
     },
 });
+
+// ============================================================================
+// SCHOOL CALENDAR MODAL - Interactive Calendar Mutations
+// Used by Dispatch App UI for visual non-school day management
+// ============================================================================
+
+/**
+ * Add a single non-school day
+ * Used by: School Calendar Modal - clicking a day to mark as closed
+ */
+export const addNonSchoolDay = mutation({
+    args: {
+        schoolId: v.id("schools"),
+        date: v.string(), // YYYY-MM-DD
+        description: v.optional(v.string()),
+    },
+    handler: async (ctx, args) => {
+        // Check for existing entry to avoid duplicates
+        const existing = await ctx.db
+            .query("nonSchoolDays")
+            .withIndex("by_school_date", (q) =>
+                q.eq("schoolId", args.schoolId).eq("date", args.date)
+            )
+            .first();
+
+        if (existing) {
+            // Update description if provided
+            if (args.description !== undefined) {
+                await ctx.db.patch(existing._id, { description: args.description });
+            }
+            return existing._id;
+        }
+
+        return await ctx.db.insert("nonSchoolDays", {
+            schoolId: args.schoolId,
+            date: args.date,
+            description: args.description,
+        });
+    },
+});
+
+/**
+ * Remove a single non-school day
+ * Used by: School Calendar Modal - clicking a marked day to unmark
+ */
+export const removeNonSchoolDay = mutation({
+    args: {
+        schoolId: v.id("schools"),
+        date: v.string(), // YYYY-MM-DD
+    },
+    handler: async (ctx, args) => {
+        const existing = await ctx.db
+            .query("nonSchoolDays")
+            .withIndex("by_school_date", (q) =>
+                q.eq("schoolId", args.schoolId).eq("date", args.date)
+            )
+            .first();
+
+        if (existing) {
+            await ctx.db.delete(existing._id);
+            return true;
+        }
+        return false;
+    },
+});
+
+/**
+ * Bulk update non-school days for a school
+ * Used by: School Calendar Modal - Save button (batch operation)
+ * Efficiently handles adding and removing multiple dates in one transaction
+ */
+export const bulkUpdateNonSchoolDays = mutation({
+    args: {
+        schoolId: v.id("schools"),
+        toAdd: v.array(
+            v.object({
+                date: v.string(),
+                description: v.optional(v.string()),
+            })
+        ),
+        toRemove: v.array(v.string()), // Array of date strings to remove
+    },
+    handler: async (ctx, args) => {
+        let added = 0;
+        let removed = 0;
+
+        // Remove dates first
+        for (const date of args.toRemove) {
+            const existing = await ctx.db
+                .query("nonSchoolDays")
+                .withIndex("by_school_date", (q) =>
+                    q.eq("schoolId", args.schoolId).eq("date", date)
+                )
+                .first();
+
+            if (existing) {
+                await ctx.db.delete(existing._id);
+                removed++;
+            }
+        }
+
+        // Add new dates
+        for (const day of args.toAdd) {
+            const existing = await ctx.db
+                .query("nonSchoolDays")
+                .withIndex("by_school_date", (q) =>
+                    q.eq("schoolId", args.schoolId).eq("date", day.date)
+                )
+                .first();
+
+            if (!existing) {
+                await ctx.db.insert("nonSchoolDays", {
+                    schoolId: args.schoolId,
+                    date: day.date,
+                    description: day.description,
+                });
+                added++;
+            }
+        }
+
+        return { added, removed };
+    },
+});
+
+/**
+ * Create or update school schedule (upsert)
+ * Used by: School Calendar Modal - Save button for schedule times
+ */
+export const upsertSchoolSchedule = mutation({
+    args: {
+        schoolId: v.id("schools"),
+        amStartTime: v.string(),
+        pmReleaseTime: v.string(),
+        minDayDismissalTime: v.optional(v.string()),
+        minimumDays: v.optional(v.string()),
+        earlyRelease: v.optional(v.string()),
+        pmAftercare: v.optional(v.string()),
+    },
+    handler: async (ctx, args) => {
+        const { schoolId, ...scheduleData } = args;
+
+        // Check for existing schedule
+        const existing = await ctx.db
+            .query("schoolSchedules")
+            .withIndex("by_school", (q) => q.eq("schoolId", schoolId))
+            .first();
+
+        if (existing) {
+            // Update existing schedule
+            await ctx.db.patch(existing._id, scheduleData);
+            return existing._id;
+        } else {
+            // Create new schedule
+            return await ctx.db.insert("schoolSchedules", {
+                schoolId,
+                ...scheduleData,
+            });
+        }
+    },
+});

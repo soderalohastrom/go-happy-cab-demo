@@ -295,6 +295,40 @@ export function useUpdateSchool() {
 }
 
 // =============================================================================
+// School Calendar - Non-School Days & Schedule Mutations
+// =============================================================================
+
+/**
+ * Add a single non-school day (for immediate toggle)
+ */
+export function useAddNonSchoolDay() {
+  return useMutation(api.schools.addNonSchoolDay);
+}
+
+/**
+ * Remove a single non-school day (for immediate toggle)
+ */
+export function useRemoveNonSchoolDay() {
+  return useMutation(api.schools.removeNonSchoolDay);
+}
+
+/**
+ * Bulk update non-school days (for Save operation)
+ * Efficiently adds and removes multiple dates in one transaction
+ */
+export function useBulkUpdateNonSchoolDays() {
+  return useMutation(api.schools.bulkUpdateNonSchoolDays);
+}
+
+/**
+ * Create or update school schedule times
+ * Handles AM start, PM release, minimum day, aftercare times
+ */
+export function useUpsertSchoolSchedule() {
+  return useMutation(api.schools.upsertSchoolSchedule);
+}
+
+// =============================================================================
 // Reports - Specialized Report Queries
 // =============================================================================
 

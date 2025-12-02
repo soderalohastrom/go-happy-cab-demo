@@ -23,6 +23,7 @@ import {
   useUpdateSchool,
 } from '../hooks/useConvexRoutes';
 import { Id } from '../convex/_generated/dataModel';
+import { SchoolCalendarModal } from './SchoolCalendarModal';
 
 type District = {
   _id: Id<"districts">;
@@ -83,6 +84,17 @@ export default function SchoolsContent() {
     lastDay: '',
   });
   const [isAddingSchool, setIsAddingSchool] = useState(false);
+
+  // Calendar modal state
+  const [calendarModalVisible, setCalendarModalVisible] = useState(false);
+  const [calendarSchoolId, setCalendarSchoolId] = useState<Id<'schools'> | null>(null);
+  const [calendarSchoolName, setCalendarSchoolName] = useState('');
+
+  const handleOpenCalendarModal = (school: School) => {
+    setCalendarSchoolId(school._id);
+    setCalendarSchoolName(school.schoolName);
+    setCalendarModalVisible(true);
+  };
 
   // Handle submit district (add or edit)
   const handleSubmitDistrict = async () => {
@@ -281,12 +293,20 @@ export default function SchoolsContent() {
           {item.firstDay} to {item.lastDay}
         </Text>
       </View>
-      <TouchableOpacity
-        style={styles.editButton}
-        onPress={() => handleOpenEditSchoolModal(item)}
-      >
-        <Text style={styles.editButtonText}>Edit</Text>
-      </TouchableOpacity>
+      <View style={styles.cardButtons}>
+        <TouchableOpacity
+          style={styles.calendarButton}
+          onPress={() => handleOpenCalendarModal(item)}
+        >
+          <Text style={styles.calendarButtonText}>📅</Text>
+        </TouchableOpacity>
+        <TouchableOpacity
+          style={styles.editButton}
+          onPress={() => handleOpenEditSchoolModal(item)}
+        >
+          <Text style={styles.editButtonText}>Edit</Text>
+        </TouchableOpacity>
+      </View>
     </View>
   );
 
@@ -417,6 +437,14 @@ export default function SchoolsContent() {
           </View>
         </View>
       </Modal>
+
+      {/* School Calendar Modal */}
+      <SchoolCalendarModal
+        visible={calendarModalVisible}
+        schoolId={calendarSchoolId}
+        schoolName={calendarSchoolName}
+        onClose={() => setCalendarModalVisible(false)}
+      />
 
       {/* Add School Modal */}
       <Modal
@@ -599,6 +627,23 @@ const styles = StyleSheet.create({
   cardContent: {
     flex: 1,
   },
+  cardButtons: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginLeft: 12,
+  },
+  calendarButton: {
+    backgroundColor: '#FFF3E0',
+    paddingVertical: 6,
+    paddingHorizontal: 10,
+    borderRadius: 6,
+    borderColor: '#FF9800',
+    borderWidth: 1,
+  },
+  calendarButtonText: {
+    fontSize: 16,
+  },
   editButton: {
     backgroundColor: '#E3F2FD',
     paddingVertical: 6,
@@ -606,7 +651,6 @@ const styles = StyleSheet.create({
     borderRadius: 6,
     borderColor: '#2196F3',
     borderWidth: 1,
-    marginLeft: 12,
   },
   editButtonText: {
     color: '#2196F3',
