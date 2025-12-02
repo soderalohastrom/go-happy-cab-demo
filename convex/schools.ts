@@ -1300,6 +1300,109 @@ export const bulkUpdateNonSchoolDays = mutation({
 });
 
 /**
+ * Bulk update school first/last day dates using fuzzy name matching
+ * Used by: Data import from Google Sheets to fix missing/incorrect dates
+ *
+ * Converts date formats:
+ * - "8/12/2025" → "2025-08-12" (MM/DD/YYYY → YYYY-MM-DD)
+ * - "Ongoing" → "Ongoing" (preserved as-is for special cases)
+ * - Empty string → null (skipped)
+ */
+export const bulkUpdateSchoolDates = mutation({
+    args: {
+        schools: v.array(v.object({
+            schoolName: v.string(),
+            firstDay: v.string(), // MM/DD/YYYY or "Ongoing" or empty
+            lastDay: v.string(),  // MM/DD/YYYY or empty
+        })),
+    },
+    handler: async (ctx, args) => {
+        let updatedCount = 0;
+        let skippedCount = 0;
+        const matchedNames: Record<string, string> = {};
+        const notFound: string[] = [];
+
+        // Helper to convert MM/DD/YYYY to YYYY-MM-DD
+        const convertDate = (dateStr: string): string | null => {
+            if (!dateStr || dateStr.trim() === "") return null;
+            if (dateStr === "Ongoing") return "Ongoing";
+
+            // Check if it's already YYYY-MM-DD format
+            if (/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) {
+                return dateStr;
+            }
+
+            // Parse MM/DD/YYYY format
+            const match = dateStr.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+            if (match) {
+                const [, month, day, year] = match;
+                return `${year}-${month.padStart(2, '0')}-${day.padStart(2, '0')}`;
+            }
+
+            // Try to parse other formats (e.g., "5/22" as "5/22/2026")
+            const shortMatch = dateStr.match(/^(\d{1,2})\/(\d{1,2})$/);
+            if (shortMatch) {
+                const [, month, day] = shortMatch;
+                // Assume 2026 for school year end dates
+                return `2026-${month.padStart(2, '0')}-${day.padStart(2, '0')}`;
+            }
+
+            console.warn(`Could not parse date: "${dateStr}"`);
+            return null;
+        };
+
+        for (const schoolData of args.schools) {
+            // Skip empty school names
+            if (!schoolData.schoolName || schoolData.schoolName.trim() === "") {
+                skippedCount++;
+                continue;
+            }
+
+            // Find school using fuzzy matching
+            const school = await findSchoolByFuzzyName(ctx, schoolData.schoolName);
+
+            if (!school) {
+                notFound.push(schoolData.schoolName);
+                skippedCount++;
+                continue;
+            }
+
+            // Log fuzzy matches for debugging
+            if (school.schoolName !== schoolData.schoolName && !matchedNames[schoolData.schoolName]) {
+                matchedNames[schoolData.schoolName] = school.schoolName;
+                console.log(`Matched: "${schoolData.schoolName}" → "${school.schoolName}"`);
+            }
+
+            // Convert dates
+            const firstDay = convertDate(schoolData.firstDay);
+            const lastDay = convertDate(schoolData.lastDay);
+
+            // Build update object (only include non-null values)
+            const updates: Record<string, string> = {};
+            if (firstDay !== null) updates.firstDay = firstDay;
+            if (lastDay !== null) updates.lastDay = lastDay;
+
+            // Skip if no valid dates to update
+            if (Object.keys(updates).length === 0) {
+                skippedCount++;
+                continue;
+            }
+
+            // Update the school
+            await ctx.db.patch(school._id, updates);
+            updatedCount++;
+        }
+
+        return {
+            updatedCount,
+            skippedCount,
+            notFound,
+            matchedNames
+        };
+    },
+});
+
+/**
  * Create or update school schedule (upsert)
  * Used by: School Calendar Modal - Save button for schedule times
  */
