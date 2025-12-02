@@ -706,6 +706,249 @@ export const copyFromDate = mutation({
 });
 
 
+// ============================================================
+// SMART COPY SYSTEM - Part 3 Scheduling Intelligence
+// ============================================================
+
+// Helper to subtract days from a date string (YYYY-MM-DD)
+const subtractDays = (dateStr: string, days: number): string => {
+  const date = new Date(dateStr);
+  date.setDate(date.getDate() - days);
+  return date.toISOString().split('T')[0];
+};
+
+// Helper to calculate days difference between two date strings
+const daysDiff = (startDate: string, endDate: string): number => {
+  const start = new Date(startDate);
+  const end = new Date(endDate);
+  return Math.round((end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24));
+};
+
+// Get the last date that had routes (for smart copy)
+// Searches backwards up to 14 days (covers weekends, holidays, even short breaks)
+export const getLastValidScheduleDate = query({
+  args: { targetDate: v.string() },
+  handler: async (ctx, args) => {
+    const MAX_LOOKBACK_DAYS = 14;
+
+    for (let daysBack = 1; daysBack <= MAX_LOOKBACK_DAYS; daysBack++) {
+      const checkDate = subtractDays(args.targetDate, daysBack);
+
+      // Check if this date has any routes
+      const route = await ctx.db
+        .query("routes")
+        .withIndex("by_date_period", (q) => q.eq("date", checkDate))
+        .first();
+
+      if (route) {
+        // Count total routes for this date
+        const amRoutes = await ctx.db
+          .query("routes")
+          .withIndex("by_date_period", (q) => q.eq("date", checkDate).eq("period", "AM"))
+          .collect();
+
+        const pmRoutes = await ctx.db
+          .query("routes")
+          .withIndex("by_date_period", (q) => q.eq("date", checkDate).eq("period", "PM"))
+          .collect();
+
+        const totalRoutes = amRoutes.length + pmRoutes.length;
+
+        // Count unique drivers
+        const driverIds = new Set([
+          ...amRoutes.map(r => r.driverId),
+          ...pmRoutes.map(r => r.driverId),
+        ]);
+
+        return {
+          date: checkDate,
+          daysAgo: daysBack,
+          routeCount: totalRoutes,
+          driverCount: driverIds.size,
+          label: daysBack === 1 ? "yesterday" : `${daysBack} days ago`,
+        };
+      }
+    }
+
+    // No routes found in last 14 days - dispatcher should start fresh
+    return null;
+  },
+});
+
+// Copy routes from the last valid schedule date with school closure filtering
+export const copyFromLastValidDay = mutation({
+  args: {
+    targetDate: v.string(),
+    excludeClosedSchools: v.optional(v.boolean()), // Default: true
+    sourceDate: v.optional(v.string()), // Override auto-detection
+    user: v.optional(v.string()),
+  },
+  handler: async (ctx, args) => {
+    // 1. Find source date (last valid or user-specified)
+    let sourceDate = args.sourceDate;
+
+    if (!sourceDate) {
+      // Auto-detect by searching backwards up to 14 days
+      const MAX_LOOKBACK_DAYS = 14;
+      for (let daysBack = 1; daysBack <= MAX_LOOKBACK_DAYS; daysBack++) {
+        const checkDate = subtractDays(args.targetDate, daysBack);
+        const route = await ctx.db
+          .query("routes")
+          .withIndex("by_date_period", (q) => q.eq("date", checkDate))
+          .first();
+
+        if (route) {
+          sourceDate = checkDate;
+          break;
+        }
+      }
+    }
+
+    if (!sourceDate) {
+      throw new Error("No previous routes found in last 14 days. Start fresh by dragging children to drivers.");
+    }
+
+    // 2. Get target date's school closures
+    const closedSchoolIds = new Set<string>();
+    const closureInfo: Array<{ schoolId: string; schoolName: string; reason: string }> = [];
+
+    if (args.excludeClosedSchools !== false) {
+      // Get all schools and check for closures
+      const allSchools = await ctx.db.query("schools").collect();
+
+      for (const school of allSchools) {
+        const nonSchoolDay = await ctx.db
+          .query("nonSchoolDays")
+          .withIndex("by_school_date", (q) =>
+            q.eq("schoolId", school._id).eq("date", args.targetDate)
+          )
+          .first();
+
+        if (nonSchoolDay) {
+          closedSchoolIds.add(school._id);
+          closureInfo.push({
+            schoolId: school._id,
+            schoolName: school.schoolName,
+            reason: nonSchoolDay.description || nonSchoolDay.reason || "School Closed",
+          });
+        }
+      }
+    }
+
+    // 3. Check if target date already has assignments
+    const existingAM = await ctx.db
+      .query("routes")
+      .withIndex("by_date_period", (q) => q.eq("date", args.targetDate).eq("period", "AM"))
+      .first();
+
+    const existingPM = await ctx.db
+      .query("routes")
+      .withIndex("by_date_period", (q) => q.eq("date", args.targetDate).eq("period", "PM"))
+      .first();
+
+    if (existingAM || existingPM) {
+      throw new Error("This date already has assignments. Delete existing routes first.");
+    }
+
+    // 4. Get source routes
+    const amRoutes = await ctx.db
+      .query("routes")
+      .withIndex("by_date_period", (q) => q.eq("date", sourceDate).eq("period", "AM"))
+      .collect();
+
+    const pmRoutes = await ctx.db
+      .query("routes")
+      .withIndex("by_date_period", (q) => q.eq("date", sourceDate).eq("period", "PM"))
+      .collect();
+
+    const sourceRoutes = [...amRoutes, ...pmRoutes];
+
+    // 5. Copy routes, filtering out closed schools if requested
+    let copied = 0;
+    let skipped = 0;
+    const skippedChildren: Array<{ name: string; school: string; reason: string }> = [];
+
+    for (const route of sourceRoutes) {
+      const child = await ctx.db.get(route.childId);
+
+      // Check if child's school is closed
+      if (child?.schoolId && closedSchoolIds.has(child.schoolId)) {
+        skipped++;
+        const closure = closureInfo.find(c => c.schoolId === child.schoolId);
+        skippedChildren.push({
+          name: `${child.firstName} ${child.lastName}`,
+          school: closure?.schoolName || "Unknown School",
+          reason: closure?.reason || "School Closed",
+        });
+        continue;
+      }
+
+      // Also check by schoolName if schoolId not available
+      if (child?.schoolName && !child.schoolId) {
+        const school = await ctx.db
+          .query("schools")
+          .withIndex("by_school_name", (q) => q.eq("schoolName", child.schoolName))
+          .first();
+
+        if (school && closedSchoolIds.has(school._id)) {
+          skipped++;
+          const closure = closureInfo.find(c => c.schoolId === school._id);
+          skippedChildren.push({
+            name: `${child.firstName} ${child.lastName}`,
+            school: closure?.schoolName || child.schoolName,
+            reason: closure?.reason || "School Closed",
+          });
+          continue;
+        }
+      }
+
+      // Copy the route
+      await ctx.db.insert("routes", {
+        date: args.targetDate,
+        period: route.period,
+        type: route.period === "AM" ? "pickup" : "dropoff",
+        childId: route.childId,
+        driverId: route.driverId,
+        status: "scheduled",
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+        createdBy: args.user,
+      });
+      copied++;
+    }
+
+    // 6. Create audit log entry
+    await ctx.db.insert("auditLogs", createAuditLog(
+      "bulk_copied",
+      "route",
+      `${copied}_routes`,
+      {
+        description: skipped > 0
+          ? `Copied ${copied} routes from ${sourceDate}. Skipped ${skipped} (school closed).`
+          : `Copied ${copied} routes from ${sourceDate}.`,
+        date: args.targetDate,
+        fromDate: sourceDate,
+        copied: copied.toString(),
+        skipped: skipped.toString(),
+        closedSchools: closureInfo.map(c => c.schoolName).join(", "),
+      },
+      args.user || "system"
+    ));
+
+    return {
+      sourceDate,
+      daysBack: daysDiff(sourceDate, args.targetDate),
+      copied,
+      skipped,
+      skippedChildren,
+      closedSchools: closureInfo,
+      message: skipped > 0
+        ? `Copied ${copied} routes from ${sourceDate}. Skipped ${skipped} (school closed).`
+        : `Copied ${copied} routes from ${sourceDate}.`,
+    };
+  },
+});
+
 export const scheduleReminder = mutation({
   args: {
     routeId: v.id("routes"),

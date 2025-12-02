@@ -27,12 +27,13 @@ import {
   useUnassignedDrivers,
   useRouteCountsForDate,
   useCreateRoute,
-  useCopyFromPreviousDay,
   useRemoveRoute,
+  useSchedulingAlerts,
 } from '../hooks/useConvexRoutes';
 import { DraggableCard } from './DraggableCard';
 import { DropZone } from './DropZone';
 import { DragOverlay } from './DragOverlay';
+import SmartCopySection from './SmartCopySection';
 
 interface AssignmentScreenProps {
   date: string; // YYYY-MM-DD format
@@ -89,10 +90,15 @@ export default function AssignmentScreen({ date }: AssignmentScreenProps) {
   const unassignedChildren = useUnassignedChildren(date, activePeriod);
   const unassignedDrivers = useUnassignedDrivers(date, activePeriod);
   const routeCounts = useRouteCountsForDate(date);
+  const schedulingAlerts = useSchedulingAlerts(date);
+
+  // Create a Set of closed school IDs for quick lookup
+  const closedSchoolIds = new Set(
+    (schedulingAlerts?.closures || []).map((c: any) => c.schoolId)
+  );
 
   // Mutations
   const createRoute = useCreateRoute();
-  const copyFromPreviousDay = useCopyFromPreviousDay();
   const removeRoute = useRemoveRoute();
   
   // CARPOOL: Group routes by driver to detect carpools
@@ -271,16 +277,6 @@ export default function AssignmentScreen({ date }: AssignmentScreenProps) {
       updated.set(driverId, [...existingChildren, childId]);
       return updated;
     });
-  };
-
-  // Handle copy from previous day
-  const handleCopyPreviousDay = async () => {
-    try {
-      const result = await copyFromPreviousDay({ targetDate: date });
-      Alert.alert('Success', result.message);
-    } catch (error: any) {
-      Alert.alert('Error', error.message || 'Failed to copy routes');
-    }
   };
 
   // TESTING HELPER: Clear all routes for current date/period
@@ -493,13 +489,19 @@ export default function AssignmentScreen({ date }: AssignmentScreenProps) {
         </TouchableOpacity>
       </View>
 
-      {/* Copy Previous Day Button (show if empty) */}
+      {/* Smart Copy Section (show if empty) - Schedule-aware route copying */}
       {isEmpty && (
         <View style={styles.emptyState}>
           <Text style={styles.emptyStateText}>No routes scheduled for this period</Text>
-          <TouchableOpacity style={styles.copyButton} onPress={handleCopyPreviousDay}>
-            <Text style={styles.copyButtonText}>📋 Copy Previous Day's Routes</Text>
-          </TouchableOpacity>
+          <SmartCopySection
+            targetDate={date}
+            onCopySuccess={(result) => {
+              Alert.alert('Success', result.message);
+            }}
+            onCopyError={(error) => {
+              Alert.alert('Error', error);
+            }}
+          />
         </View>
       )}
 
@@ -535,6 +537,9 @@ export default function AssignmentScreen({ date }: AssignmentScreenProps) {
                     // Skip if already in carpool (shouldn't happen due to Convex query filtering)
                     if (isInCarpool) return null;
 
+                    // Check if child's school is closed today
+                    const isSchoolClosed = child.schoolId && closedSchoolIds.has(child.schoolId);
+
                     return (
                       <DropZone
                         key={child._id}
@@ -550,6 +555,8 @@ export default function AssignmentScreen({ date }: AssignmentScreenProps) {
                           onDragStart={handleDragStart}
                           onDragMove={handleDragMove}
                           onDragEnd={handleDragEnd}
+                          disabled={isSchoolClosed}
+                          badge={isSchoolClosed ? "School Closed" : undefined}
                         />
                       </DropZone>
                     );

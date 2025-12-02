@@ -314,6 +314,38 @@ export function useDistrictSchoolReport(date: string, period: 'AM' | 'PM') {
   return useQuery(api.reports.getDistrictSchoolReport, { date, period });
 }
 
+// =============================================================================
+// Route Scheduling - Smart Copy System
+// =============================================================================
+
+/**
+ * Get the last valid schedule date (14-day lookback)
+ * Returns the most recent date with routes before the target date
+ */
+export function useLastValidScheduleDate(targetDate: string) {
+  return useQuery(api.assignments.getLastValidScheduleDate, { targetDate });
+}
+
+/**
+ * Get scheduling alerts for a specific date
+ * Returns closures, early dismissals, and other schedule modifications
+ * @param simulateAllClosed - "Rain Day Test" mode to simulate all schools closed
+ */
+export function useSchedulingAlerts(date: string, simulateAllClosed?: boolean) {
+  return useQuery(api.schools.getSchedulingAlertsForDate, {
+    date,
+    simulateAllClosed: simulateAllClosed || false
+  });
+}
+
+/**
+ * Copy routes from the last valid day (Smart Copy)
+ * Filters out children whose schools are closed on the target date
+ */
+export function useCopyFromLastValidDay() {
+  return useMutation(api.assignments.copyFromLastValidDay);
+}
+
 /**
  * =====================================================================
  * Mutations

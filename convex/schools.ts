@@ -987,6 +987,154 @@ export const getEarlyOutDaysForSchool = query({
     },
 });
 
+// ============================================================================
+// DISPATCH APP - SMART COPY SCHEDULING INTELLIGENCE
+// Used for pre-flight validation when copying routes
+// ============================================================================
+
+/**
+ * Get all school closures and schedule adjustments for a specific date
+ * Used for: Dispatch App - CollapsibleAlertsBanner component
+ *
+ * Features:
+ * - Lists all schools that are closed on the target date
+ * - Lists all schools with early dismissal/schedule adjustments
+ * - Supports "Rain Day Test" mode to simulate all schools closed (dev testing)
+ */
+export const getSchedulingAlertsForDate = query({
+    args: {
+        date: v.string(), // YYYY-MM-DD
+        simulateAllClosed: v.optional(v.boolean()), // "Rain Day Test" mode
+    },
+    handler: async (ctx, args) => {
+        const { date, simulateAllClosed } = args;
+
+        const closures: Array<{
+            schoolId: string;
+            schoolName: string;
+            reason: string;
+        }> = [];
+
+        const adjustments: Array<{
+            schoolId: string;
+            schoolName: string;
+            type: "early_out" | "minimum_day" | "weekly_early";
+            time: string;
+            reason: string;
+        }> = [];
+
+        // Get all schools
+        const allSchools = await ctx.db.query("schools").collect();
+
+        for (const school of allSchools) {
+            // RAIN DAY TEST MODE: Simulate all schools closed
+            if (simulateAllClosed) {
+                closures.push({
+                    schoolId: school._id,
+                    schoolName: school.schoolName,
+                    reason: "Rain Day (Test Mode)",
+                });
+                continue;
+            }
+
+            // Check for non-school day (closure)
+            const nonSchoolDay = await ctx.db
+                .query("nonSchoolDays")
+                .withIndex("by_school_date", (q) =>
+                    q.eq("schoolId", school._id).eq("date", date)
+                )
+                .first();
+
+            if (nonSchoolDay) {
+                closures.push({
+                    schoolId: school._id,
+                    schoolName: school.schoolName,
+                    reason: nonSchoolDay.description || "School Closed",
+                });
+                continue; // Skip time adjustments for closed schools
+            }
+
+            // Check for early out day (specific date adjustment)
+            const earlyOut = await ctx.db
+                .query("earlyOutDays")
+                .withIndex("by_school_date", (q) =>
+                    q.eq("schoolId", school._id).eq("date", date)
+                )
+                .first();
+
+            if (earlyOut) {
+                adjustments.push({
+                    schoolId: school._id,
+                    schoolName: school.schoolName,
+                    type: "early_out",
+                    time: earlyOut.dismissalTime,
+                    reason: earlyOut.reason || "Early Dismissal",
+                });
+                continue; // Specific early out takes priority over weekly patterns
+            }
+
+            // Check for minimum day or weekly early release (based on schedule)
+            const schedule = await ctx.db
+                .query("schoolSchedules")
+                .withIndex("by_school", (q) => q.eq("schoolId", school._id))
+                .first();
+
+            if (schedule) {
+                const dayOfWeek = new Date(date).getDay();
+                const dayNames = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
+                const dayName = dayNames[dayOfWeek];
+
+                // Check minimum days
+                if (schedule.minimumDays && schedule.minDayDismissalTime) {
+                    const minimumDays = schedule.minimumDays.toLowerCase();
+                    if (
+                        minimumDays.includes(dayName.toLowerCase()) ||
+                        minimumDays.includes("every") ||
+                        (minimumDays === "varies" && dayOfWeek === 5)
+                    ) {
+                        adjustments.push({
+                            schoolId: school._id,
+                            schoolName: school.schoolName,
+                            type: "minimum_day",
+                            time: schedule.minDayDismissalTime,
+                            reason: "Minimum Day",
+                        });
+                        continue;
+                    }
+                }
+
+                // Check weekly early release
+                if (schedule.earlyRelease) {
+                    const shortDayNames = ["sun", "mon", "tue", "wed", "thu", "fri", "sat"];
+                    const shortDay = shortDayNames[dayOfWeek];
+                    const earlyRelease = schedule.earlyRelease.toLowerCase();
+
+                    if (earlyRelease.includes(shortDay) || earlyRelease.includes("every")) {
+                        const timeMatch = schedule.earlyRelease.match(/(\d{1,2}:\d{2}\s*(?:AM|PM))/i);
+                        if (timeMatch) {
+                            adjustments.push({
+                                schoolId: school._id,
+                                schoolName: school.schoolName,
+                                type: "weekly_early",
+                                time: timeMatch[1],
+                                reason: "Weekly Early Release",
+                            });
+                        }
+                    }
+                }
+            }
+        }
+
+        return {
+            date,
+            closures: closures.sort((a, b) => a.schoolName.localeCompare(b.schoolName)),
+            adjustments: adjustments.sort((a, b) => a.schoolName.localeCompare(b.schoolName)),
+            totalAlerts: closures.length + adjustments.length,
+            isRainDayTest: simulateAllClosed || false,
+        };
+    },
+});
+
 /**
  * Get all scheduling data for a date (non-school days + early outs)
  * Used for: Driver App route cards - bulk lookup
