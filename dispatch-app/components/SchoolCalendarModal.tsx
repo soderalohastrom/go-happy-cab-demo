@@ -93,6 +93,12 @@ export function SchoolCalendarModal({
     const startDate = new Date(firstDay);
     const endDate = new Date(lastDay);
 
+    // Validate: endDate must be after startDate
+    if (endDate <= startDate) {
+      console.warn(`Invalid school year dates: ${firstDay} to ${lastDay}`);
+      return [];
+    }
+
     const result: { year: number; month: number }[] = [];
     let current = new Date(startDate.getFullYear(), startDate.getMonth(), 1);
 
@@ -254,23 +260,41 @@ export function SchoolCalendarModal({
 
         {/* Calendar Grid */}
         <ScrollView style={styles.scrollView} contentContainerStyle={styles.scrollContent}>
-          <View style={[styles.monthsGrid, { flexWrap: 'wrap' }]}>
-            {months.map(({ year, month }, index) => (
-              <View
-                key={`${year}-${month}`}
-                style={{ width: `${100 / columnsPerRow}%`, minWidth: 240 }}
-              >
-                <MonthGrid
-                  year={year}
-                  month={month}
-                  nonSchoolDates={localNonSchoolDates}
-                  firstDayOfSchool={firstDay}
-                  lastDayOfSchool={lastDay}
-                  onDayPress={handleDayPress}
-                />
-              </View>
-            ))}
-          </View>
+          {months.length === 0 ? (
+            <View style={styles.noCalendarMessage}>
+              <Text style={styles.noCalendarTitle}>No Calendar Available</Text>
+              <Text style={styles.noCalendarText}>
+                This school has invalid or missing date range.
+              </Text>
+              <Text style={styles.noCalendarText}>
+                First Day: {schoolDetails?.firstDay || 'Not set'}
+              </Text>
+              <Text style={styles.noCalendarText}>
+                Last Day: {schoolDetails?.lastDay || 'Not set'}
+              </Text>
+              <Text style={styles.noCalendarHint}>
+                Please edit the school to set valid first/last day dates.
+              </Text>
+            </View>
+          ) : (
+            <View style={[styles.monthsGrid, { flexWrap: 'wrap' }]}>
+              {months.map(({ year, month }, index) => (
+                <View
+                  key={`${year}-${month}`}
+                  style={{ width: `${100 / columnsPerRow}%`, minWidth: 240 }}
+                >
+                  <MonthGrid
+                    year={year}
+                    month={month}
+                    nonSchoolDates={localNonSchoolDates}
+                    firstDayOfSchool={firstDay}
+                    lastDayOfSchool={lastDay}
+                    onDayPress={handleDayPress}
+                  />
+                </View>
+              ))}
+            </View>
+          )}
 
           {/* Schedule Editor */}
           <ScheduleEditor schedule={localSchedule} onChange={handleScheduleChange} />
@@ -414,6 +438,32 @@ const styles = StyleSheet.create({
   monthsGrid: {
     flexDirection: 'row',
     justifyContent: 'flex-start',
+  },
+  noCalendarMessage: {
+    backgroundColor: '#FFF',
+    borderRadius: 12,
+    padding: 32,
+    margin: 16,
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: '#E0E0E0',
+  },
+  noCalendarTitle: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: '#333',
+    marginBottom: 16,
+  },
+  noCalendarText: {
+    fontSize: 14,
+    color: '#666',
+    marginBottom: 4,
+  },
+  noCalendarHint: {
+    fontSize: 14,
+    color: '#007AFF',
+    marginTop: 16,
+    fontStyle: 'italic',
   },
   footer: {
     backgroundColor: '#FFF',
