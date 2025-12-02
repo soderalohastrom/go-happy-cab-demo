@@ -258,6 +258,9 @@ export function SchoolCalendarModal({
           </View>
         </View>
 
+        {/* Schedule Editor - Above Calendar */}
+        <ScheduleEditor schedule={localSchedule} onChange={handleScheduleChange} />
+
         {/* Calendar Grid */}
         <ScrollView style={styles.scrollView} contentContainerStyle={styles.scrollContent}>
           {months.length === 0 ? (
@@ -295,9 +298,6 @@ export function SchoolCalendarModal({
               ))}
             </View>
           )}
-
-          {/* Schedule Editor */}
-          <ScheduleEditor schedule={localSchedule} onChange={handleScheduleChange} />
         </ScrollView>
 
         {/* Footer Buttons */}
