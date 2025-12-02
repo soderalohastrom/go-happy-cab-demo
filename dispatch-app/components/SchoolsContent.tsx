@@ -294,12 +294,15 @@ export default function SchoolsContent() {
         </Text>
       </View>
       <View style={styles.cardButtons}>
-        <TouchableOpacity
-          style={styles.calendarButton}
-          onPress={() => handleOpenCalendarModal(item)}
-        >
-          <Text style={styles.calendarButtonText}>📅</Text>
-        </TouchableOpacity>
+        {/* Calendar button only on web - dispatch admin feature */}
+        {Platform.OS === 'web' && (
+          <TouchableOpacity
+            style={styles.calendarButton}
+            onPress={() => handleOpenCalendarModal(item)}
+          >
+            <Text style={styles.calendarButtonText}>📅</Text>
+          </TouchableOpacity>
+        )}
         <TouchableOpacity
           style={styles.editButton}
           onPress={() => handleOpenEditSchoolModal(item)}
