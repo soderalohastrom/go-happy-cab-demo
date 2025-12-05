@@ -1135,5 +1135,176 @@ export default defineSchema({
     updatedAt: v.string(),
   })
     .index("by_active", ["isActive"]),
+
+  // ============================================================================
+  // INTAKE FORM - Consumer-facing transportation request submissions
+  // Added: December 4, 2025
+  // Used by: Consumer website (gohappy-www repo)
+  // ============================================================================
+
+  /**
+   * Transportation Requests - Intake form submissions
+   * 
+   * Stores submissions from the public intake form BEFORE admin approval.
+   * Once approved, data is migrated to the children table for dispatch.
+   * Mirrors the PDF "Student Transportation Request Form" structure.
+   */
+  transportationRequests: defineTable({
+    // === STATUS & TRACKING ===
+    status: v.union(
+      v.literal("pending"),
+      v.literal("under_review"),
+      v.literal("approved"),
+      v.literal("rejected"),
+      v.literal("archived")
+    ),
+    submittedAt: v.string(),
+    reviewedAt: v.optional(v.string()),
+    reviewedBy: v.optional(v.string()),
+    reviewNotes: v.optional(v.string()),
+    
+    // === REQUEST DETAILS ===
+    requestDate: v.string(),
+    serviceStartDate: v.string(),
+    durationOfRequest: v.optional(v.string()),
+    
+    // === REQUESTOR INFO ===
+    requestorName: v.string(),
+    requestorTitle: v.optional(v.string()),
+    requestorPhone: v.optional(v.string()),
+    requestorEmail: v.optional(v.string()),
+    coordinatorName: v.optional(v.string()),
+    coordinatorPhone: v.optional(v.string()),
+    coordinatorEmail: v.optional(v.string()),
+    billingContact: v.optional(v.string()),
+    billingPhone: v.optional(v.string()),
+    billingEmail: v.optional(v.string()),
+    billingCode: v.optional(v.string()),
+    districtName: v.string(),
+    
+    // === RIDER/STUDENT INFO ===
+    studentName: v.string(),
+    dateOfBirth: v.string(),
+    gender: v.optional(v.string()),
+    grade: v.optional(v.string()),
+    disability: v.optional(v.string()),
+    address: v.string(),
+    riderPrimaryLanguage: v.optional(v.string()),
+    residencePrimaryLanguage: v.optional(v.string()),
+    
+    // === RIDER STATUS FLAGS ===
+    transportationInIEP: v.boolean(),
+    residesWithParents: v.boolean(),
+    residesWithGuardian: v.boolean(),
+    residesWithOther: v.boolean(),
+    mckinneyVento: v.boolean(),
+    residentialFacility: v.boolean(),
+    
+    // === GUARDIAN INFO ===
+    primaryGuardianName: v.optional(v.string()),
+    primaryGuardianCell: v.optional(v.string()),
+    primaryGuardianRelationship: v.optional(v.string()),
+    primaryGuardianEmail: v.optional(v.string()),
+    secondaryGuardianName: v.optional(v.string()),
+    secondaryGuardianCell: v.optional(v.string()),
+    secondaryGuardianRelationship: v.optional(v.string()),
+    caregiverName: v.optional(v.string()),
+    caregiverCell: v.optional(v.string()),
+    caregiverHours: v.optional(v.string()),
+    emergencyContactName: v.optional(v.string()),
+    emergencyContactCell: v.optional(v.string()),
+    emergencyContactRelationship: v.optional(v.string()),
+    guardiansResideWithRider: v.boolean(),
+    guardianAddressIfNo: v.optional(v.string()),
+    
+    // === TRANSPORTATION INFO ===
+    amPickupLocation: v.optional(v.string()),
+    amPickupTime: v.optional(v.string()),
+    amDropLocation: v.optional(v.string()),
+    dropOffWindow: v.optional(v.string()),
+    bellTime: v.optional(v.string()),
+    transportSpecialInstructions: v.optional(v.string()),
+    
+    // === SCHOOL INFO ===
+    schoolName: v.optional(v.string()),
+    schoolAddress: v.optional(v.string()),
+    schoolType: v.optional(v.string()),
+    schoolAmBellTime: v.optional(v.string()),
+    schoolPmPickupTime: v.optional(v.string()),
+    schoolEarlyOutTime: v.optional(v.string()),
+    schoolSpecialInstructions: v.optional(v.string()),
+    scheduleMTH: v.optional(v.string()),
+    scheduleFri: v.optional(v.string()),
+    
+    // === SCHOOL STAFF ===
+    primaryTeacherName: v.optional(v.string()),
+    primaryTeacherPhone: v.optional(v.string()),
+    primaryTeacherEmail: v.optional(v.string()),
+    secondaryContactName: v.optional(v.string()),
+    secondaryContactPhone: v.optional(v.string()),
+    secondaryContactTitle: v.optional(v.string()),
+    schoolEmergencyContactName: v.optional(v.string()),
+    schoolEmergencyContactCell: v.optional(v.string()),
+    schoolEmergencyContactTitle: v.optional(v.string()),
+    counsellorName: v.optional(v.string()),
+    counsellorPhone: v.optional(v.string()),
+    counsellorEmail: v.optional(v.string()),
+    classroomAideName: v.optional(v.string()),
+    classroomAideCell: v.optional(v.string()),
+    classroomAideEmail: v.optional(v.string()),
+    
+    // === SPECIAL NEEDS FLAGS ===
+    behavior: v.boolean(),
+    behaviorPlanAttached: v.boolean(),
+    adultSupervision: v.boolean(),
+    adultSupervisionDetails: v.optional(v.string()),
+    directHandoff: v.boolean(),
+    vehicleEquipmentReq: v.boolean(),
+    vanOrLarger: v.boolean(),
+    wheelchairVan: v.boolean(),
+    walker: v.boolean(),
+    wheelchair: v.boolean(),
+    booster: v.boolean(),
+    carSeat: v.boolean(),
+    medicalConcerns: v.boolean(),
+    healthcarePlanAttached: v.boolean(),
+    nonVerbal: v.boolean(),
+    medicalTechnology: v.boolean(),
+    seizureDisorder: v.boolean(),
+    seizurePlanAttached: v.boolean(),
+    assistiveDevices: v.boolean(),
+    medicationDuringTransport: v.boolean(),
+    severeAllergies: v.boolean(),
+    temperatureSensitivity: v.boolean(),
+    chokingConcerns: v.boolean(),
+    flightRisk: v.boolean(),
+    noiseSensitivity: v.boolean(),
+    mustRideSolo: v.boolean(),
+    aggressiveSelf: v.boolean(),
+    aggressiveOthers: v.boolean(),
+    transitionTools: v.boolean(),
+    requiresCompanion: v.boolean(),
+    requiresTransportAide: v.boolean(),
+    musicPreferences: v.boolean(),
+    prefersMaleDriver: v.boolean(),
+    prefersFemaleDriver: v.boolean(),
+    noConversation: v.boolean(),
+    transportToIEP: v.boolean(),
+    iepServiceLocationDetails: v.optional(v.string()),
+    beforeAfterCare: v.boolean(),
+    beforeAfterCareDetails: v.optional(v.string()),
+    otherSpecialNeeds: v.optional(v.string()),
+    
+    // === COMMENTS ===
+    comments: v.optional(v.string()),
+    
+    // === METADATA ===
+    createdAt: v.string(),
+    updatedAt: v.string(),
+  })
+    .index("by_status", ["status"])
+    .index("by_submitted_at", ["submittedAt"])
+    .index("by_district", ["districtName"])
+    .index("by_student_name", ["studentName"]),
 });
 
