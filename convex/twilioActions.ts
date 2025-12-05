@@ -213,3 +213,71 @@ export const testSMS = action({
     }
   },
 });
+
+/**
+ * Test SMS via Toll-Free number
+ *
+ * Uses the toll-free number (+18777804236) as sender instead of the 10DLC number.
+ * Toll-free numbers have simpler verification requirements than 10DLC.
+ */
+export const testSMSTollFree = action({
+  args: {
+    to: v.string(),
+    message: v.optional(v.string()),
+  },
+  handler: async (ctx, args) => {
+    const accountSid = process.env.TWILIO_ACCOUNT_SID;
+    const authToken = process.env.TWILIO_AUTH_TOKEN;
+    const fromNumber = process.env.TWILIO_PHONE_NUMBER_TOLLFREE || "+18777804236";
+
+    if (!accountSid || !authToken) {
+      throw new Error("Twilio credentials not configured.");
+    }
+
+    const testMessage = args.message ||
+      "🚗 Go Happy Cab Test (Toll-Free): Your SMS integration is working!";
+
+    try {
+      const url = `https://api.twilio.com/2010-04-01/Accounts/${accountSid}/Messages.json`;
+      const auth = btoa(`${accountSid}:${authToken}`);
+
+      const response = await fetch(url, {
+        method: "POST",
+        headers: {
+          "Authorization": `Basic ${auth}`,
+          "Content-Type": "application/x-www-form-urlencoded",
+        },
+        body: new URLSearchParams({
+          To: args.to,
+          From: fromNumber,
+          Body: testMessage,
+        }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        return {
+          success: false,
+          error: `Twilio API error: ${data.message || "Unknown error"}`,
+          errorCode: data.code,
+          details: data,
+        };
+      }
+
+      return {
+        success: true,
+        twilioSid: data.sid,
+        status: data.status,
+        to: data.to,
+        from: data.from,
+        message: "SMS sent via toll-free number! Check your phone.",
+      };
+    } catch (error: any) {
+      return {
+        success: false,
+        error: error.message,
+      };
+    }
+  },
+});
