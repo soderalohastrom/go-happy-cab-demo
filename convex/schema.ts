@@ -514,6 +514,11 @@ export default defineSchema({
       driverName: v.optional(v.string()),
       count: v.optional(v.string()),
       fromDate: v.optional(v.string()),
+
+      // Copy-forward operation fields
+      copied: v.optional(v.string()),
+      skipped: v.optional(v.string()),
+      closedSchools: v.optional(v.string()),
     }),
 
     // Source
