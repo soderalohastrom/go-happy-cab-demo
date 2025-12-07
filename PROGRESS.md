@@ -38,13 +38,14 @@ Append-only session log. Each session adds an entry at the top.
 - `dispatch-app/components/ChildrenContent.tsx` - UI toggle
 - `dispatch-app/components/DriversContent.tsx` - UI toggle
 
-### Ready for Testing
-- Run `npx convex dev` from project root
-- Run `npx expo start` from dispatch-app
-- Toggle a child/driver to "On Hold"
-- Verify greyed-out appearance
-- Verify entity disappears from dispatch assignment pool
-- Verify copy-forward skips on-hold children
+### Bugfix: AuditLogs Schema
+- Added `copied`, `skipped`, `closedSchools` fields to `auditLogs.details` schema
+- Fixed copy-forward operation failing due to schema validation error
+
+### Verified & Ready to Merge
+- All 7 implementation tasks passing in TASKS.json
+- Copy-forward tested and working
+- Types synced to dispatch-app
 
 ---
 
