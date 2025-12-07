@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { StyleSheet, Text, View, FlatList, TouchableOpacity, ActivityIndicator, Modal, TextInput, Alert, KeyboardAvoidingView, Platform, ScrollView, Switch } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
 import { Picker } from '@react-native-picker/picker';
 import { useAllChildren, useAddChild, useDeactivateChild, useReactivateChild, useUpdateChild, useAllSchools, useAllDrivers } from '../hooks/useConvexRoutes';
 import { useMutation } from 'convex/react';
@@ -209,44 +210,50 @@ export default function ChildrenContent() {
 
   const renderChild = ({ item }: { item: Child }) => (
     <View style={[styles.childCard, item.onHold && styles.onHoldCard]}>
-      <View style={styles.childInfo}>
-        <Text style={[styles.childName, item.onHold && styles.onHoldText]}>{item.firstName} {item.lastName}</Text>
-        <Text style={[styles.childDetails, item.onHold && styles.onHoldText]}>
-          Grade: {item.grade} | {item.schoolName}
-        </Text>
-        {item.studentId && (
-          <Text style={[styles.childMeta, item.onHold && styles.onHoldText]}>Student ID: {item.studentId}</Text>
-        )}
-        {item.homeLanguage && (
-          <Text style={[styles.childMeta, item.onHold && styles.onHoldText]}>Language: {item.homeLanguage}</Text>
-        )}
+      {/* Row 1: Name and details */}
+      <View style={styles.cardRow}>
+        <View style={styles.childInfo}>
+          <Text style={[styles.childName, item.onHold && styles.onHoldText]}>
+            {item.firstName} {item.lastName}
+          </Text>
+          <Text style={[styles.childDetails, item.onHold && styles.onHoldText]}>
+            Grade: {item.grade} | {item.schoolName}
+          </Text>
+        </View>
+        <View style={styles.childStatus}>
+          <View style={[styles.statusIndicator, item.active ? styles.active : styles.inactive]} />
+        </View>
       </View>
-      <View style={styles.onHoldToggleContainer}>
-        <Text style={[styles.onHoldLabel, item.onHold && styles.onHoldText]}>On Hold</Text>
-        <Switch
-          value={item.onHold || false}
-          onValueChange={() => handleToggleOnHold(item)}
-          trackColor={{ false: '#E0E0E0', true: '#FFCC80' }}
-          thumbColor={item.onHold ? '#FF9800' : '#FFFFFF'}
-        />
-      </View>
-      <View style={styles.childStatus}>
-        <View style={[styles.statusIndicator, item.active ? styles.active : styles.inactive]} />
-        <Text style={[styles.statusText, item.onHold && styles.onHoldText]}>{item.active ? 'Active' : 'Inactive'}</Text>
-      </View>
-      <View style={styles.actionsRow}>
-        <TouchableOpacity
-          style={styles.editButton}
-          onPress={() => handleOpenEditModal(item)}
-        >
-          <Text style={styles.editButtonText}>Edit</Text>
-        </TouchableOpacity>
-        <TouchableOpacity
-          style={[styles.actionButton, !item.active && styles.reactivateButton]}
-          onPress={() => handleToggleActive(item)}
-        >
-          <Text style={styles.actionButtonText}>{item.active ? 'Deactivate' : 'Reactivate'}</Text>
-        </TouchableOpacity>
+
+      {/* Row 2: Controls */}
+      <View style={styles.controlsRow}>
+        <View style={styles.onHoldToggleContainer}>
+          <Text style={[styles.onHoldLabel, item.onHold && styles.onHoldText]}>On Hold</Text>
+          <Switch
+            value={item.onHold || false}
+            onValueChange={() => handleToggleOnHold(item)}
+            trackColor={{ false: '#E0E0E0', true: '#FFCC80' }}
+            thumbColor={item.onHold ? '#FF9800' : '#FFFFFF'}
+          />
+        </View>
+        <View style={styles.actionsRow}>
+          <TouchableOpacity
+            style={styles.editButton}
+            onPress={() => handleOpenEditModal(item)}
+          >
+            <Text style={styles.editButtonText}>Edit</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[styles.iconButton, !item.active && styles.reactivateIconButton]}
+            onPress={() => handleToggleActive(item)}
+          >
+            {item.active ? (
+              <Ionicons name="trash-outline" size={18} color="#F44336" />
+            ) : (
+              <Ionicons name="refresh" size={18} color="#4CAF50" />
+            )}
+          </TouchableOpacity>
+        </View>
       </View>
     </View>
   );
@@ -656,22 +663,33 @@ const styles = StyleSheet.create({
   childCard: {
     backgroundColor: '#FFFFFF',
     borderRadius: 8,
-    padding: 16,
+    padding: 12,
     marginBottom: 12,
-    flexDirection: 'row',
-    alignItems: 'center',
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.05,
     shadowRadius: 2,
     elevation: 2,
   },
+  cardRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  controlsRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    borderTopWidth: 1,
+    borderTopColor: '#F0F0F0',
+    paddingTop: 8,
+  },
   childInfo: {
     flex: 1,
   },
   childName: {
-    fontSize: 16,
-    fontWeight: '600',
+    fontSize: 17,
+    fontWeight: 'bold',
     color: '#333',
   },
   childDetails: {
@@ -687,7 +705,7 @@ const styles = StyleSheet.create({
   childStatus: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginHorizontal: 16,
+    marginLeft: 8,
   },
   statusIndicator: {
     width: 10,
@@ -732,6 +750,14 @@ const styles = StyleSheet.create({
     color: '#333',
     fontWeight: '500',
     fontSize: 12,
+  },
+  iconButton: {
+    padding: 8,
+    borderRadius: 6,
+    backgroundColor: '#FFEBEE',
+  },
+  reactivateIconButton: {
+    backgroundColor: '#E8F5E9',
   },
   reactivateButton: {
     backgroundColor: '#E8F5E9', // A light green to indicate a positive action
