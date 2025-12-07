@@ -4,13 +4,12 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-Go Happy Cab Demo - A real-time scheduling system for child transportation management with calendar-based assignment tracking. 
+Go Happy Cab - A real-time scheduling system for child transportation management with calendar-based assignment tracking.
 
-**Two Apps Sharing Unified Convex Backend:**
-- **POC App** (React + Vite) - Original demo at root, web-based dispatch interface
+**Architecture:**
 - **Dispatch App** (React Native + Expo) - Mobile-first dispatch app in `dispatch-app/`
-
-Both apps connect to the same Convex deployment: `colorful-wildcat-524.convex.cloud`
+- **Convex Backend** - Shared real-time database at project root
+- **Deployment:** `colorful-wildcat-524.convex.cloud`
 
 **Phase 9: Schools Management (Nov 21, 2025 - IN PROGRESS)**
 - 5 new Convex tables: districts, schools, schoolContacts, schoolSchedules, nonSchoolDays
@@ -34,27 +33,23 @@ Both apps connect to the same Convex deployment: `colorful-wildcat-524.convex.cl
 
 ## Development Commands
 
-### POC App (Vite)
+### Convex Backend
 ```bash
-# Terminal 1: Convex backend sync (shared by both apps)
+# Start Convex dev (REQUIRED - run from project root!)
 npx convex dev
 
-# Terminal 2: Vite dev server
-npm run dev           # Runs on localhost:5173
-
-# Build and preview
-npm run build
-npm run preview
+# Or use npm script
+npm run convex:dev
 ```
 
 ### Dispatch App (Expo)
 ```bash
-# Terminal 1: Convex backend sync (REQUIRED - from main project root!)
+# Terminal 1: Convex backend sync (from project root!)
 npx convex dev
 
 # Terminal 2: Expo dev server
 cd dispatch-app
-npx expo start        # Press 'i' for iOS, 'a' for Android
+npx expo start        # Press 'i' for iOS, 'a' for Android, 'w' for Web
 ```
 
 **⚠️ CRITICAL:** See [CONVEX_DEV_WORKFLOW.md](CONVEX_DEV_WORKFLOW.md) for correct Convex dev setup!
@@ -85,21 +80,16 @@ python3 import_school_data.py                                        # Import di
 **If you modify the Convex schema**, you must re-copy the generated types to dispatch-app:
 
 ```bash
-cd dispatch-app/convex
-rm -rf _generated
-cp -r ../../convex/_generated .
+# Option 1: Use npm script
+npm run sync:types
+
+# Option 2: Manual copy
+cp -r convex/_generated dispatch-app/convex/_generated
 ```
 
 This is required because Metro bundler (Expo's bundler) needs a local copy of the types and doesn't follow symlinks well.
 
 ## Architecture Overview
-
-### POC App Frontend (Vite)
-- **React 18** with Vite bundler for fast HMR
-- **@dnd-kit** for drag-and-drop interactions with touch support
-- **react-calendar** for date navigation and scheduling UI
-- **TailwindCSS** for styling
-- Local state managed via React hooks, synced with Convex
 
 ### Dispatch App Frontend (Expo)
 - **React Native** with Expo Router for navigation
@@ -111,7 +101,7 @@ This is required because Metro bundler (Expo's bundler) needs a local copy of th
 - Real-time Convex sync via hooks in `hooks/useConvexRoutes.ts`
 - Components: MonthCalendar, DateNavigator, AssignmentScreen, DraggableCard, DropZone
 
-### Backend (Convex) - Unified for Both Apps
+### Backend (Convex)
 - Real-time database with reactive queries
 - Automatic TypeScript type generation from schema
 - WebSocket-based live synchronization
@@ -134,12 +124,7 @@ The Dispatch App is designed for early-morning route assignment:
 4. **Real-time Sync** - Changes instantly notify drivers via dispatch events
 
 ### Drag-and-Drop System
-**POC App (Vite):** Uses @dnd-kit with custom sensors for mouse and touch:
-- `TouchSensor` with 100ms delay prevents accidental drags
-- `PointerSensor` for desktop interactions
-- Draggable children/drivers, droppable assignment slots
-
-**Dispatch App (Expo):** Uses react-native-gesture-handler + reanimated:
+Uses react-native-gesture-handler + reanimated:
 - **Drag Overlay Pattern** ensures dragged card floats above all UI elements.
 - **Coordinate Space Correction** for perfect finger tracking:
   - **Native (iOS/Android):** Uses `position: absolute` + wrapperOffsetY correction

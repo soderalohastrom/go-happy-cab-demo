@@ -3,27 +3,18 @@
   "private": true,
   "version": "0.0.1",
   "type": "module",
+  "description": "Go Happy Cab - Convex backend and dispatch system for child transportation",
   "scripts": {
-    "dev": "vite",
-    "build": "npx convex codegen && vite build",
-    "preview": "vite preview"
+    "convex:dev": "convex dev",
+    "convex:deploy": "convex deploy",
+    "convex:logs": "convex logs",
+    "convex:dashboard": "convex dashboard",
+    "sync:types": "cp -r convex/_generated dispatch-app/convex/_generated && echo '✅ Types synced to dispatch-app'"
   },
   "dependencies": {
-    "@dnd-kit/core": "^6.3.1",
-    "@dnd-kit/sortable": "^10.0.0",
-    "@dnd-kit/utilities": "^3.2.2",
     "convex": "^1.29.3",
     "expo-server-sdk": "^4.0.0",
-    "googleapis": "^166.0.0",
-    "react": "^18.2.0",
-    "react-calendar": "^6.0.0",
-    "react-dom": "^18.2.0"
+    "googleapis": "^166.0.0"
   },
-  "devDependencies": {
-    "@vitejs/plugin-react": "^4.2.1",
-    "autoprefixer": "^10.4.16",
-    "postcss": "^8.4.32",
-    "tailwindcss": "^3.3.6",
-    "vite": "^5.0.8"
-  }
+  "devDependencies": {}
 }
