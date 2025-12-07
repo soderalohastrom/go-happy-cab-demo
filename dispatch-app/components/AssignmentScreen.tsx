@@ -4,9 +4,10 @@
  * Main dispatch interface with AM/PM tabs, drag-and-drop pairing, and route management
  */
 
-import React, { 
-  useState, 
-  useRef 
+import React, {
+  useState,
+  useRef,
+  useMemo
 } from 'react';
 import {
   StyleSheet,
@@ -34,6 +35,8 @@ import { DraggableCard } from './DraggableCard';
 import { DropZone } from './DropZone';
 import { DragOverlay } from './DragOverlay';
 import SmartCopySection from './SmartCopySection';
+import { isPastPeriod, getEditPermissions, formatPeriodLabel } from '../utils/timeHelpers';
+import { Ionicons } from '@expo/vector-icons';
 
 interface AssignmentScreenProps {
   date: string; // YYYY-MM-DD format
@@ -95,6 +98,12 @@ export default function AssignmentScreen({ date }: AssignmentScreenProps) {
   // Create a Set of closed school IDs for quick lookup
   const closedSchoolIds = new Set(
     (schedulingAlerts?.closures || []).map((c: any) => c.schoolId)
+  );
+
+  // Past-period editing permissions - determines what can be edited
+  const permissions = useMemo(() =>
+    getEditPermissions(date, activePeriod),
+    [date, activePeriod]
   );
 
   // Mutations
@@ -465,32 +474,71 @@ export default function AssignmentScreen({ date }: AssignmentScreenProps) {
         {/* Period Tabs */}
       <View style={styles.tabsContainer}>
         <TouchableOpacity
-          style={[styles.tab, activePeriod === 'AM' && styles.activeTab]}
+          style={[
+            styles.tab, 
+            activePeriod === 'AM' && styles.activeTab,
+            isPastPeriod(date, 'AM') && styles.pastTab
+          ]}
           onPress={() => setActivePeriod('AM')}
         >
-          <Text style={[styles.tabText, activePeriod === 'AM' && styles.activeTabText]}>
-            🌅 AM Pickup
+          <Text style={[
+            styles.tabText, 
+            activePeriod === 'AM' && styles.activeTabText,
+            isPastPeriod(date, 'AM') && activePeriod !== 'AM' && styles.pastTabText
+          ]}>
+            🌅 AM Pickup {isPastPeriod(date, 'AM') && '✓'}
           </Text>
-          <Text style={[styles.tabCount, activePeriod === 'AM' && styles.activeTabCount]}>
+          <Text style={[
+            styles.tabCount, 
+            activePeriod === 'AM' && styles.activeTabCount,
+            isPastPeriod(date, 'AM') && activePeriod !== 'AM' && styles.pastTabCount
+          ]}>
             {routeCounts?.amCount ?? 0}
           </Text>
         </TouchableOpacity>
 
         <TouchableOpacity
-          style={[styles.tab, activePeriod === 'PM' && styles.activeTab]}
+          style={[
+            styles.tab, 
+            activePeriod === 'PM' && styles.activeTab,
+            isPastPeriod(date, 'PM') && styles.pastTab
+          ]}
           onPress={() => setActivePeriod('PM')}
         >
-          <Text style={[styles.tabText, activePeriod === 'PM' && styles.activeTabText]}>
-            🌇 PM Dropoff
+          <Text style={[
+            styles.tabText, 
+            activePeriod === 'PM' && styles.activeTabText,
+            isPastPeriod(date, 'PM') && activePeriod !== 'PM' && styles.pastTabText
+          ]}>
+            🌇 PM Dropoff {isPastPeriod(date, 'PM') && '✓'}
           </Text>
-          <Text style={[styles.tabCount, activePeriod === 'PM' && styles.activeTabCount]}>
+          <Text style={[
+            styles.tabCount, 
+            activePeriod === 'PM' && styles.activeTabCount,
+            isPastPeriod(date, 'PM') && activePeriod !== 'PM' && styles.pastTabCount
+          ]}>
             {routeCounts?.pmCount ?? 0}
           </Text>
         </TouchableOpacity>
       </View>
 
-      {/* Smart Copy Section (show if empty) - Schedule-aware route copying */}
-      {isEmpty && (
+      {/* Past Period Warning Banner */}
+      {permissions.showPastWarning && (
+        <View style={styles.pastPeriodBanner}>
+          <Ionicons name="lock-closed" size={18} color="#856404" />
+          <View style={styles.pastPeriodBannerText}>
+            <Text style={styles.pastPeriodBannerTitle}>
+              {permissions.statusLabel}
+            </Text>
+            <Text style={styles.pastPeriodBannerSubtext}>
+              Editing disabled for {formatPeriodLabel(date, activePeriod)}
+            </Text>
+          </View>
+        </View>
+      )}
+
+      {/* Smart Copy Section (show if empty and can copy) - Schedule-aware route copying */}
+      {isEmpty && permissions.canCopyRoutes && (
         <View style={styles.emptyState}>
           <Text style={styles.emptyStateText}>No routes scheduled for this period</Text>
           <SmartCopySection
@@ -502,6 +550,14 @@ export default function AssignmentScreen({ date }: AssignmentScreenProps) {
               Alert.alert('Error', error);
             }}
           />
+        </View>
+      )}
+      
+      {/* Past period empty state - no copy option */}
+      {isEmpty && !permissions.canCopyRoutes && (
+        <View style={styles.emptyState}>
+          <Text style={styles.emptyStateText}>No routes were scheduled for this period</Text>
+          <Text style={styles.emptyStateSubtext}>Past periods cannot be modified</Text>
         </View>
       )}
 
@@ -555,8 +611,9 @@ export default function AssignmentScreen({ date }: AssignmentScreenProps) {
                           onDragStart={handleDragStart}
                           onDragMove={handleDragMove}
                           onDragEnd={handleDragEnd}
-                          disabled={isSchoolClosed}
+                          disabled={isSchoolClosed || !permissions.canDragDrop}
                           badge={isSchoolClosed ? "School Closed" : undefined}
+                          showLockIcon={!permissions.canDragDrop}
                         />
                       </DropZone>
                     );
@@ -749,12 +806,18 @@ export default function AssignmentScreen({ date }: AssignmentScreenProps) {
                               <Text style={styles.statusBadgeCancelled}>🔔 Pre-cancelled</Text>
                             )}
                           </View>
-                          <TouchableOpacity
-                            style={styles.removeButton}
-                            onPress={() => handleRemoveRoute(route._id)}
-                          >
-                            <Text style={styles.removeButtonText}>✕</Text>
-                          </TouchableOpacity>
+                          {permissions.canUnpair ? (
+                            <TouchableOpacity
+                              style={styles.removeButton}
+                              onPress={() => handleRemoveRoute(route._id)}
+                            >
+                              <Text style={styles.removeButtonText}>✕</Text>
+                            </TouchableOpacity>
+                          ) : (
+                            <View style={styles.removeButtonDisabled}>
+                              <Text style={styles.removeButtonTextDisabled}>🔒</Text>
+                            </View>
+                          )}
                         </View>
                       ))}
                     </View>
@@ -805,12 +868,18 @@ export default function AssignmentScreen({ date }: AssignmentScreenProps) {
                       </View>
                     )}
                   </View>
-                  <TouchableOpacity
-                    style={styles.removeButton}
-                    onPress={() => handleRemoveRoute(route._id)}
-                  >
-                    <Text style={styles.removeButtonText}>✕</Text>
-                  </TouchableOpacity>
+                  {permissions.canUnpair ? (
+                    <TouchableOpacity
+                      style={styles.removeButton}
+                      onPress={() => handleRemoveRoute(route._id)}
+                    >
+                      <Text style={styles.removeButtonText}>✕</Text>
+                    </TouchableOpacity>
+                  ) : (
+                    <View style={styles.removeButtonDisabled}>
+                      <Text style={styles.removeButtonTextDisabled}>🔒</Text>
+                    </View>
+                  )}
                 </View>
               );
             }
@@ -1018,6 +1087,16 @@ const styles = StyleSheet.create({
   activeTabCount: {
     color: '#fff',
   },
+  pastTab: {
+    backgroundColor: '#F5F5F5',
+    opacity: 0.8,
+  },
+  pastTabText: {
+    color: '#999',
+  },
+  pastTabCount: {
+    color: '#BDBDBD',
+  },
   emptyState: {
     alignItems: 'center',
     padding: 32,
@@ -1030,6 +1109,12 @@ const styles = StyleSheet.create({
     color: '#666',
     marginBottom: 16,
     textAlign: 'center',
+  },
+  emptyStateSubtext: {
+    fontSize: 14,
+    color: '#999',
+    textAlign: 'center',
+    fontStyle: 'italic',
   },
   copyButton: {
     backgroundColor: '#FF9800',
@@ -1185,6 +1270,18 @@ const styles = StyleSheet.create({
   removeButtonText: {
     fontSize: 18,
     color: '#F44336',
+  },
+  removeButtonDisabled: {
+    width: 32,
+    height: 32,
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderRadius: 16,
+    backgroundColor: '#E0E0E0',
+  },
+  removeButtonTextDisabled: {
+    fontSize: 14,
+    color: '#9E9E9E',
   },
   pairingContainer: {
     backgroundColor: '#fff',
@@ -1630,6 +1727,32 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '600',
     color: '#fff',
+  },
+  // Past Period Warning Banner styles
+  pastPeriodBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#FFF3CD',
+    borderColor: '#FFE69C',
+    borderWidth: 1,
+    borderRadius: 8,
+    padding: 12,
+    marginHorizontal: 16,
+    marginTop: 12,
+    gap: 10,
+  },
+  pastPeriodBannerText: {
+    flex: 1,
+  },
+  pastPeriodBannerTitle: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: '#856404',
+  },
+  pastPeriodBannerSubtext: {
+    fontSize: 12,
+    color: '#856404',
+    marginTop: 2,
   },
 });
 

@@ -182,8 +182,10 @@ export const getUnassignedChildren = query({
     // Find assigned child IDs
     const assignedChildIds = new Set(assignments.map((a) => a.childId));
 
-    // Return unassigned children
-    return allChildren.filter((child) => !assignedChildIds.has(child._id));
+    // Return unassigned children, excluding those on hold
+    return allChildren.filter(
+      (child) => !assignedChildIds.has(child._id) && !child.onHold
+    );
   },
 });
 
@@ -211,8 +213,10 @@ export const getUnassignedDrivers = query({
     // Find assigned driver IDs
     const assignedDriverIds = new Set(assignments.map((a) => a.driverId));
 
-    // Return unassigned drivers
-    return allDrivers.filter((driver) => !assignedDriverIds.has(driver._id));
+    // Return unassigned drivers, excluding those on hold
+    return allDrivers.filter(
+      (driver) => !assignedDriverIds.has(driver._id) && !driver.onHold
+    );
   },
 });
 
@@ -250,8 +254,38 @@ export const create = mutation({
     user: v.optional(v.string()),
     scheduledTime: v.optional(v.string()), // e.g. "8:30 AM"
     reminderMinutes: v.optional(v.number()),
+    adminOverride: v.optional(v.boolean()), // Allow past-period creation with warning
   },
   handler: async (ctx, args) => {
+    // PAST-PERIOD VALIDATION: Block creation for past dates/periods unless admin override
+    const today = new Date().toISOString().split("T")[0];
+    const currentHour = new Date().getHours();
+    const isPastDate = args.date < today;
+    const isPastPeriod = args.date === today && args.period === "AM" && currentHour >= 12;
+
+    if ((isPastDate || isPastPeriod) && !args.adminOverride) {
+      throw new Error(
+        `Cannot create route for past ${args.period} period on ${args.date}. ` +
+        `Use adminOverride=true to proceed.`
+      );
+    }
+
+    // Log admin override if used for past period
+    if ((isPastDate || isPastPeriod) && args.adminOverride) {
+      await ctx.db.insert("auditLogs", createAuditLog(
+        "admin_override",
+        "route",
+        "pending",
+        {
+          description: `Admin override used to create route for past period`,
+          date: args.date,
+          period: args.period,
+          reason: "Past-period editing override",
+        },
+        args.user || "system"
+      ));
+    }
+
     // Check for existing assignment for the child
     const existingChildAssignment = await ctx.db
       .query("routes")
@@ -496,6 +530,7 @@ export const remove = mutation({
   args: {
     id: v.id("routes"),
     user: v.optional(v.string()),
+    adminOverride: v.optional(v.boolean()), // Allow past-period deletion with warning
   },
   handler: async (ctx, args) => {
     const assignment = await ctx.db.get(args.id);
@@ -504,9 +539,49 @@ export const remove = mutation({
       throw new Error("Assignment not found");
     }
 
+    // TERMINAL STATUS CHECK: Block deletion of completed/no_show/cancelled routes
+    const terminalStatuses = ["completed", "no_show", "cancelled", "late_cancel"];
+    if (terminalStatuses.includes(assignment.status)) {
+      throw new Error(
+        `Cannot delete route with terminal status "${assignment.status}". ` +
+        `Route has already been processed.`
+      );
+    }
+
+    // PAST-PERIOD VALIDATION: Block deletion for past dates/periods unless admin override
+    const today = new Date().toISOString().split("T")[0];
+    const currentHour = new Date().getHours();
+    const isPastDate = assignment.date < today;
+    const isPastPeriod = assignment.date === today && assignment.period === "AM" && currentHour >= 12;
+
+    if ((isPastDate || isPastPeriod) && !args.adminOverride) {
+      throw new Error(
+        `Cannot delete route for past ${assignment.period} period on ${assignment.date}. ` +
+        `Use adminOverride=true to proceed.`
+      );
+    }
+
     // Get child and driver names for audit log
     const child = await ctx.db.get(assignment.childId);
     const driver = await ctx.db.get(assignment.driverId);
+
+    // Log admin override if used for past period
+    if ((isPastDate || isPastPeriod) && args.adminOverride) {
+      await ctx.db.insert("auditLogs", createAuditLog(
+        "admin_override",
+        "route",
+        args.id,
+        {
+          description: `Admin override used to delete route for past period`,
+          date: assignment.date,
+          period: assignment.period,
+          childName: `${child?.firstName || ""} ${child?.lastName || "Unknown"}`.trim(),
+          driverName: `${driver?.firstName || ""} ${driver?.lastName || "Unknown"}`.trim(),
+          reason: "Past-period deletion override",
+        },
+        args.user || "system"
+      ));
+    }
 
     // Delete the assignment
     await ctx.db.delete(args.id);
@@ -870,6 +945,17 @@ export const copyFromLastValidDay = mutation({
 
     for (const route of sourceRoutes) {
       const child = await ctx.db.get(route.childId);
+
+      // Skip children that are on hold
+      if (child?.onHold) {
+        skipped++;
+        skippedChildren.push({
+          name: `${child.firstName} ${child.lastName}`,
+          school: child.schoolName || "Unknown School",
+          reason: "On Hold",
+        });
+        continue;
+      }
 
       // Check if child's school is closed
       if (child?.schoolId && closedSchoolIds.has(child.schoolId)) {

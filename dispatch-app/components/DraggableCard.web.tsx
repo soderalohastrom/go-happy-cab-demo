@@ -7,6 +7,7 @@
 
 import React, { useRef, useEffect } from 'react';
 import { View, Text, StyleSheet } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
 
 interface DraggableCardProps {
   id: string;
@@ -17,9 +18,10 @@ interface DraggableCardProps {
   onDragEnd: (id: string, type: 'child' | 'driver', x: number, y: number) => void;
   disabled?: boolean;
   badge?: string; // e.g., "School Closed"
+  showLockIcon?: boolean; // Show lock icon for past period disabled cards
 }
 
-export function DraggableCard({ id, type, name, onDragStart, onDragMove, onDragEnd, disabled, badge }: DraggableCardProps) {
+export function DraggableCard({ id, type, name, onDragStart, onDragMove, onDragEnd, disabled, badge, showLockIcon }: DraggableCardProps) {
   const isDragging = useRef(false);
 
   // Store latest callbacks in refs to avoid stale closure issues
@@ -101,6 +103,12 @@ export function DraggableCard({ id, type, name, onDragStart, onDragMove, onDragE
           </View>
         )}
       </View>
+      {/* Lock icon for past period disabled cards */}
+      {showLockIcon && (
+        <View style={styles.lockOverlay}>
+          <Ionicons name="lock-closed" size={16} color="#6c757d" />
+        </View>
+      )}
     </View>
   );
 }
@@ -154,5 +162,9 @@ const styles = StyleSheet.create({
     color: '#fff',
     fontSize: 10,
     fontWeight: '700',
+  },
+  lockOverlay: {
+    marginLeft: 8,
+    padding: 4,
   },
 });

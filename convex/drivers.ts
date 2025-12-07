@@ -262,3 +262,33 @@ export const updatePushToken = mutation({
     return driver._id;
   },
 });
+
+/**
+ * Toggle On Hold status for a driver.
+ * When on hold, driver is hidden from dispatch assignment pool but remains visible in Drivers tab.
+ */
+export const toggleOnHold = mutation({
+  args: { id: v.id("drivers") },
+  handler: async (ctx, args) => {
+    const driver = await ctx.db.get(args.id);
+    if (!driver) {
+      throw new Error("Driver not found");
+    }
+
+    const newOnHoldStatus = !driver.onHold;
+
+    await ctx.db.patch(args.id, {
+      onHold: newOnHoldStatus,
+      onHoldSince: newOnHoldStatus ? new Date().toISOString() : undefined,
+      updatedAt: new Date().toISOString(),
+    });
+
+    return {
+      id: args.id,
+      onHold: newOnHoldStatus,
+      message: newOnHoldStatus
+        ? `${driver.firstName} ${driver.lastName} is now on hold`
+        : `${driver.firstName} ${driver.lastName} is now active`,
+    };
+  },
+});

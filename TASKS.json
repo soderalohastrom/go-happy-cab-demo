@@ -1,0 +1,96 @@
+{
+  "project": "go-happy-cab-demo",
+  "description": "Go Happy Cab Dispatch System - Task Tracking",
+  "created": "2025-12-05",
+  "features": [
+    {
+      "id": "on-hold-children-schema",
+      "description": "Add onHold and onHoldSince fields to children schema",
+      "acceptance": [
+        "children table has onHold: v.optional(v.boolean()) field",
+        "children table has onHoldSince: v.optional(v.string()) field",
+        "Schema deploys without errors"
+      ],
+      "passes": true
+    },
+    {
+      "id": "on-hold-drivers-schema",
+      "description": "Add onHold and onHoldSince fields to drivers schema",
+      "acceptance": [
+        "drivers table has onHold: v.optional(v.boolean()) field",
+        "drivers table has onHoldSince: v.optional(v.string()) field",
+        "Schema deploys without errors"
+      ],
+      "passes": true
+    },
+    {
+      "id": "on-hold-mutations",
+      "description": "Create toggleOnHold mutations for children and drivers",
+      "acceptance": [
+        "children.toggleOnHold mutation exists and works",
+        "drivers.toggleOnHold mutation exists and works",
+        "Mutations set onHoldSince when toggling ON",
+        "Mutations clear onHoldSince when toggling OFF"
+      ],
+      "passes": true
+    },
+    {
+      "id": "on-hold-dispatch-filtering",
+      "description": "Filter out on-hold entities from dispatch assignment pool",
+      "acceptance": [
+        "getUnassignedChildren excludes children where onHold === true",
+        "getAvailableDrivers excludes drivers where onHold === true",
+        "On-hold children do not appear in draggable pool",
+        "On-hold drivers do not appear as drop targets"
+      ],
+      "passes": true
+    },
+    {
+      "id": "on-hold-copy-skip",
+      "description": "Skip on-hold children during copy-previous-day",
+      "acceptance": [
+        "copyFromLastValidDay skips children where onHold === true",
+        "Skipped count includes on-hold children in response message"
+      ],
+      "passes": true
+    },
+    {
+      "id": "on-hold-children-ui",
+      "description": "Add On Hold toggle to Children card UI",
+      "acceptance": [
+        "Toggle switch visible on each child card (middle-right)",
+        "Label shows 'On Hold'",
+        "Toggling ON greys out card (opacity ~0.5)",
+        "Toggling OFF restores normal appearance",
+        "Toggle remains interactive when card is greyed out",
+        "On-hold children remain visible and searchable in list"
+      ],
+      "passes": true
+    },
+    {
+      "id": "on-hold-drivers-ui",
+      "description": "Add On Hold toggle to Drivers card UI",
+      "acceptance": [
+        "Toggle switch visible on each driver card (middle-right)",
+        "Label shows 'On Hold'",
+        "Toggling ON greys out card (opacity ~0.5)",
+        "Toggling OFF restores normal appearance",
+        "Toggle remains interactive when card is greyed out",
+        "On-hold drivers remain visible and searchable in list"
+      ],
+      "passes": true
+    },
+    {
+      "id": "on-hold-integration-test",
+      "description": "End-to-end verification of on-hold feature",
+      "acceptance": [
+        "Put child on hold → disappears from dispatch pool",
+        "Put driver on hold → disappears from drop targets",
+        "Copy previous day → on-hold children skipped",
+        "Toggle off → entity reappears in dispatch pool",
+        "Past assignments remain unchanged"
+      ],
+      "passes": false
+    }
+  ]
+}
