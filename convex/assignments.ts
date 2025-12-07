@@ -182,8 +182,10 @@ export const getUnassignedChildren = query({
     // Find assigned child IDs
     const assignedChildIds = new Set(assignments.map((a) => a.childId));
 
-    // Return unassigned children
-    return allChildren.filter((child) => !assignedChildIds.has(child._id));
+    // Return unassigned children, excluding those on hold
+    return allChildren.filter(
+      (child) => !assignedChildIds.has(child._id) && !child.onHold
+    );
   },
 });
 
@@ -211,8 +213,10 @@ export const getUnassignedDrivers = query({
     // Find assigned driver IDs
     const assignedDriverIds = new Set(assignments.map((a) => a.driverId));
 
-    // Return unassigned drivers
-    return allDrivers.filter((driver) => !assignedDriverIds.has(driver._id));
+    // Return unassigned drivers, excluding those on hold
+    return allDrivers.filter(
+      (driver) => !assignedDriverIds.has(driver._id) && !driver.onHold
+    );
   },
 });
 
@@ -941,6 +945,17 @@ export const copyFromLastValidDay = mutation({
 
     for (const route of sourceRoutes) {
       const child = await ctx.db.get(route.childId);
+
+      // Skip children that are on hold
+      if (child?.onHold) {
+        skipped++;
+        skippedChildren.push({
+          name: `${child.firstName} ${child.lastName}`,
+          school: child.schoolName || "Unknown School",
+          reason: "On Hold",
+        });
+        continue;
+      }
 
       // Check if child's school is closed
       if (child?.schoolId && closedSchoolIds.has(child.schoolId)) {

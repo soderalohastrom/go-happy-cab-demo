@@ -98,6 +98,11 @@ export default defineSchema({
     active: v.boolean(), // Simplified active flag for dispatch
     clerkId: v.optional(v.string()), // ID from Clerk user object
     expoPushToken: v.optional(v.string()), // NEW: For push notifications
+
+    // On Hold - Temporarily remove from dispatch pool without deleting
+    onHold: v.optional(v.boolean()), // true = hidden from dispatch assignment pool
+    onHoldSince: v.optional(v.string()), // ISO date when put on hold
+
     createdAt: v.string(),
     updatedAt: v.string(),
   })
@@ -105,7 +110,8 @@ export default defineSchema({
     .index("by_employee_id", ["employeeId"])
     .index("by_email", ["email"])
     .index("by_status", ["status"])
-    .index("by_active", ["active"]),
+    .index("by_active", ["active"])
+    .index("by_on_hold", ["onHold"]),
 
   /**
    * Vehicles - Driver vehicle information
@@ -242,6 +248,10 @@ export default defineSchema({
     active: v.boolean(),
     photoPermission: v.optional(v.boolean()),
 
+    // On Hold - Temporarily remove from dispatch pool without deleting
+    onHold: v.optional(v.boolean()), // true = hidden from dispatch assignment pool
+    onHoldSince: v.optional(v.string()), // ISO date when put on hold
+
     // Metadata
     createdAt: v.string(),
     updatedAt: v.string(),
@@ -249,7 +259,8 @@ export default defineSchema({
     .index("by_last_name", ["lastName"])
     .index("by_school", ["schoolId"])
     .index("by_active", ["active"])
-    .index("by_student_id", ["studentId"]),
+    .index("by_student_id", ["studentId"])
+    .index("by_on_hold", ["onHold"]),
 
   /**
    * Parents - From driver app

@@ -167,3 +167,33 @@ export const update = mutation({
     return id;
   },
 });
+
+/**
+ * Toggle On Hold status for a child.
+ * When on hold, child is hidden from dispatch assignment pool but remains visible in Children tab.
+ */
+export const toggleOnHold = mutation({
+  args: { id: v.id("children") },
+  handler: async (ctx, args) => {
+    const child = await ctx.db.get(args.id);
+    if (!child) {
+      throw new Error("Child not found");
+    }
+
+    const newOnHoldStatus = !child.onHold;
+
+    await ctx.db.patch(args.id, {
+      onHold: newOnHoldStatus,
+      onHoldSince: newOnHoldStatus ? new Date().toISOString() : undefined,
+      updatedAt: new Date().toISOString(),
+    });
+
+    return {
+      id: args.id,
+      onHold: newOnHoldStatus,
+      message: newOnHoldStatus
+        ? `${child.firstName} ${child.lastName} is now on hold`
+        : `${child.firstName} ${child.lastName} is now active`,
+    };
+  },
+});

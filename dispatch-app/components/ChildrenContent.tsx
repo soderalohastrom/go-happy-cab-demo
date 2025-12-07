@@ -2,6 +2,8 @@ import React, { useState } from 'react';
 import { StyleSheet, Text, View, FlatList, TouchableOpacity, ActivityIndicator, Modal, TextInput, Alert, KeyboardAvoidingView, Platform, ScrollView, Switch } from 'react-native';
 import { Picker } from '@react-native-picker/picker';
 import { useAllChildren, useAddChild, useDeactivateChild, useReactivateChild, useUpdateChild, useAllSchools, useAllDrivers } from '../hooks/useConvexRoutes';
+import { useMutation } from 'convex/react';
+import { api } from '../convex/_generated/api';
 import { Id } from '../convex/_generated/dataModel';
 
 // Define a type for the child object for clarity
@@ -16,11 +18,14 @@ type Child = {
   homeLanguage?: string;
   rideType?: string;
   active: boolean;
+  onHold?: boolean;
+  onHoldSince?: string;
 };
 
 export default function ChildrenContent() {
   const children = useAllChildren();
   const addChild = useAddChild();
+  const toggleOnHold = useMutation(api.children.toggleOnHold);
   const deactivateChild = useDeactivateChild();
   const reactivateChild = useReactivateChild();
   const updateChild = useUpdateChild();
@@ -193,23 +198,41 @@ export default function ChildrenContent() {
     );
   };
 
+  const handleToggleOnHold = async (child: Child) => {
+    try {
+      const result = await toggleOnHold({ id: child._id });
+      // No alert needed - the visual change is immediate feedback
+    } catch (error: any) {
+      Alert.alert('Error', error.message || 'Failed to toggle on hold status.');
+    }
+  };
+
   const renderChild = ({ item }: { item: Child }) => (
-    <View style={styles.childCard}>
+    <View style={[styles.childCard, item.onHold && styles.onHoldCard]}>
       <View style={styles.childInfo}>
-        <Text style={styles.childName}>{item.firstName} {item.lastName}</Text>
-        <Text style={styles.childDetails}>
+        <Text style={[styles.childName, item.onHold && styles.onHoldText]}>{item.firstName} {item.lastName}</Text>
+        <Text style={[styles.childDetails, item.onHold && styles.onHoldText]}>
           Grade: {item.grade} | {item.schoolName}
         </Text>
         {item.studentId && (
-          <Text style={styles.childMeta}>Student ID: {item.studentId}</Text>
+          <Text style={[styles.childMeta, item.onHold && styles.onHoldText]}>Student ID: {item.studentId}</Text>
         )}
         {item.homeLanguage && (
-          <Text style={styles.childMeta}>Language: {item.homeLanguage}</Text>
+          <Text style={[styles.childMeta, item.onHold && styles.onHoldText]}>Language: {item.homeLanguage}</Text>
         )}
+      </View>
+      <View style={styles.onHoldToggleContainer}>
+        <Text style={[styles.onHoldLabel, item.onHold && styles.onHoldText]}>On Hold</Text>
+        <Switch
+          value={item.onHold || false}
+          onValueChange={() => handleToggleOnHold(item)}
+          trackColor={{ false: '#E0E0E0', true: '#FFCC80' }}
+          thumbColor={item.onHold ? '#FF9800' : '#FFFFFF'}
+        />
       </View>
       <View style={styles.childStatus}>
         <View style={[styles.statusIndicator, item.active ? styles.active : styles.inactive]} />
-        <Text style={styles.statusText}>{item.active ? 'Active' : 'Inactive'}</Text>
+        <Text style={[styles.statusText, item.onHold && styles.onHoldText]}>{item.active ? 'Active' : 'Inactive'}</Text>
       </View>
       <View style={styles.actionsRow}>
         <TouchableOpacity
@@ -803,5 +826,23 @@ const styles = StyleSheet.create({
   },
   submitButtonText: {
     color: '#FFFFFF',
+  },
+  // On Hold styles
+  onHoldCard: {
+    opacity: 0.5,
+    backgroundColor: '#F5F5F5',
+  },
+  onHoldText: {
+    color: '#999',
+  },
+  onHoldToggleContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginHorizontal: 8,
+  },
+  onHoldLabel: {
+    fontSize: 11,
+    marginRight: 4,
+    color: '#666',
   },
 });

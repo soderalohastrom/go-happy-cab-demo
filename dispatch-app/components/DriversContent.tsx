@@ -1,7 +1,9 @@
 import React, { useState } from 'react';
-import { StyleSheet, Text, View, FlatList, TouchableOpacity, ActivityIndicator, Modal, TextInput, Alert, KeyboardAvoidingView, Platform, ScrollView } from 'react-native';
+import { StyleSheet, Text, View, FlatList, TouchableOpacity, ActivityIndicator, Modal, TextInput, Alert, KeyboardAvoidingView, Platform, ScrollView, Switch } from 'react-native';
 import { Picker } from '@react-native-picker/picker';
 import { useAllDrivers, useAddDriver, useDeactivateDriver, useReactivateDriver, useUpdateDriver } from '../hooks/useConvexRoutes';
+import { useMutation } from 'convex/react';
+import { api } from '../convex/_generated/api';
 import { Id } from '../convex/_generated/dataModel';
 
 // Define a type for the driver object for clarity
@@ -14,11 +16,14 @@ type Driver = {
   phone: string;
   status: "active" | "inactive" | "on_shift" | "off_shift" | "suspended";
   active: boolean;
+  onHold?: boolean;
+  onHoldSince?: string;
 };
 
 export default function DriversContent() {
   const drivers = useAllDrivers();
   const addDriver = useAddDriver();
+  const toggleOnHold = useMutation(api.drivers.toggleOnHold);
   const deactivateDriver = useDeactivateDriver();
   const reactivateDriver = useReactivateDriver();
   const updateDriver = useUpdateDriver();
@@ -222,15 +227,33 @@ export default function DriversContent() {
     );
   };
 
+  const handleToggleOnHold = async (driver: Driver) => {
+    try {
+      await toggleOnHold({ id: driver._id });
+      // No alert needed - the visual change is immediate feedback
+    } catch (error: any) {
+      Alert.alert('Error', error.message || 'Failed to toggle on hold status.');
+    }
+  };
+
   const renderDriver = ({ item }: { item: Driver }) => (
-    <View style={styles.driverCard}>
+    <View style={[styles.driverCard, item.onHold && styles.onHoldCard]}>
       <View style={styles.driverInfo}>
-        <Text style={styles.driverName}>{item.firstName} {item.lastName}</Text>
-        <Text style={styles.driverContact}>{item.email} | {item.phone}</Text>
+        <Text style={[styles.driverName, item.onHold && styles.onHoldText]}>{item.firstName} {item.lastName}</Text>
+        <Text style={[styles.driverContact, item.onHold && styles.onHoldText]}>{item.email} | {item.phone}</Text>
+      </View>
+      <View style={styles.onHoldToggleContainer}>
+        <Text style={[styles.onHoldLabel, item.onHold && styles.onHoldText]}>On Hold</Text>
+        <Switch
+          value={item.onHold || false}
+          onValueChange={() => handleToggleOnHold(item)}
+          trackColor={{ false: '#E0E0E0', true: '#FFCC80' }}
+          thumbColor={item.onHold ? '#FF9800' : '#FFFFFF'}
+        />
       </View>
       <View style={styles.driverStatus}>
         <View style={[styles.statusIndicator, item.active ? styles.active : styles.inactive]} />
-        <Text style={styles.statusText}>{item.active ? 'Active' : 'Inactive'}</Text>
+        <Text style={[styles.statusText, item.onHold && styles.onHoldText]}>{item.active ? 'Active' : 'Inactive'}</Text>
       </View>
       <View style={styles.actionsRow}>
         <TouchableOpacity
@@ -751,5 +774,23 @@ const styles = StyleSheet.create({
   },
   submitButtonText: {
     color: '#FFFFFF',
+  },
+  // On Hold styles
+  onHoldCard: {
+    opacity: 0.5,
+    backgroundColor: '#F5F5F5',
+  },
+  onHoldText: {
+    color: '#999',
+  },
+  onHoldToggleContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginHorizontal: 8,
+  },
+  onHoldLabel: {
+    fontSize: 11,
+    marginRight: 4,
+    color: '#666',
   },
 });
