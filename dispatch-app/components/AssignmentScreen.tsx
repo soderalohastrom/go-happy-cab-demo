@@ -4,9 +4,10 @@
  * Main dispatch interface with AM/PM tabs, drag-and-drop pairing, and route management
  */
 
-import React, { 
-  useState, 
-  useRef 
+import React, {
+  useState,
+  useRef,
+  useMemo
 } from 'react';
 import {
   StyleSheet,
@@ -34,6 +35,8 @@ import { DraggableCard } from './DraggableCard';
 import { DropZone } from './DropZone';
 import { DragOverlay } from './DragOverlay';
 import SmartCopySection from './SmartCopySection';
+import { isPastPeriod, getEditPermissions, formatPeriodLabel } from '../utils/timeHelpers';
+import { Ionicons } from '@expo/vector-icons';
 
 interface AssignmentScreenProps {
   date: string; // YYYY-MM-DD format
@@ -95,6 +98,12 @@ export default function AssignmentScreen({ date }: AssignmentScreenProps) {
   // Create a Set of closed school IDs for quick lookup
   const closedSchoolIds = new Set(
     (schedulingAlerts?.closures || []).map((c: any) => c.schoolId)
+  );
+
+  // Past-period editing permissions - determines what can be edited
+  const permissions = useMemo(() =>
+    getEditPermissions(date, activePeriod),
+    [date, activePeriod]
   );
 
   // Mutations
@@ -489,6 +498,21 @@ export default function AssignmentScreen({ date }: AssignmentScreenProps) {
         </TouchableOpacity>
       </View>
 
+      {/* Past Period Warning Banner */}
+      {permissions.showPastWarning && (
+        <View style={styles.pastPeriodBanner}>
+          <Ionicons name="lock-closed" size={18} color="#856404" />
+          <View style={styles.pastPeriodBannerText}>
+            <Text style={styles.pastPeriodBannerTitle}>
+              {permissions.statusLabel}
+            </Text>
+            <Text style={styles.pastPeriodBannerSubtext}>
+              Editing disabled for {formatPeriodLabel(date, activePeriod)}
+            </Text>
+          </View>
+        </View>
+      )}
+
       {/* Smart Copy Section (show if empty) - Schedule-aware route copying */}
       {isEmpty && (
         <View style={styles.emptyState}>
@@ -555,8 +579,9 @@ export default function AssignmentScreen({ date }: AssignmentScreenProps) {
                           onDragStart={handleDragStart}
                           onDragMove={handleDragMove}
                           onDragEnd={handleDragEnd}
-                          disabled={isSchoolClosed}
+                          disabled={isSchoolClosed || !permissions.canDragDrop}
                           badge={isSchoolClosed ? "School Closed" : undefined}
+                          showLockIcon={!permissions.canDragDrop}
                         />
                       </DropZone>
                     );
@@ -1630,6 +1655,32 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '600',
     color: '#fff',
+  },
+  // Past Period Warning Banner styles
+  pastPeriodBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#FFF3CD',
+    borderColor: '#FFE69C',
+    borderWidth: 1,
+    borderRadius: 8,
+    padding: 12,
+    marginHorizontal: 16,
+    marginTop: 12,
+    gap: 10,
+  },
+  pastPeriodBannerText: {
+    flex: 1,
+  },
+  pastPeriodBannerTitle: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: '#856404',
+  },
+  pastPeriodBannerSubtext: {
+    fontSize: 12,
+    color: '#856404',
+    marginTop: 2,
   },
 });
 

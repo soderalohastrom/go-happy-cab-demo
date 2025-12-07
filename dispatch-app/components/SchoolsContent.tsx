@@ -90,6 +90,27 @@ export default function SchoolsContent() {
   const [calendarSchoolId, setCalendarSchoolId] = useState<Id<'schools'> | null>(null);
   const [calendarSchoolName, setCalendarSchoolName] = useState('');
 
+  const [searchQuery, setSearchQuery] = useState('');
+
+  // Filter districts
+  const filteredDistricts = districts?.filter(district => {
+    const query = searchQuery.toLowerCase();
+    return (
+      district.districtName.toLowerCase().includes(query) ||
+      district.clientName.toLowerCase().includes(query)
+    );
+  }) || [];
+
+  // Filter schools
+  const filteredSchools = schools?.filter(school => {
+    const query = searchQuery.toLowerCase();
+    return (
+      school.schoolName.toLowerCase().includes(query) ||
+      school.districtName.toLowerCase().includes(query) ||
+      school.city.toLowerCase().includes(query)
+    );
+  }) || [];
+
   const handleOpenCalendarModal = (school: School) => {
     setCalendarSchoolId(school._id);
     setCalendarSchoolName(school.schoolName);
@@ -331,7 +352,7 @@ export default function SchoolsContent() {
           onPress={() => setActiveTab('schools')}
         >
           <Text style={[styles.segmentText, activeTab === 'schools' && styles.activeSegmentText]}>
-            Schools ({schools.length})
+            Schools ({filteredSchools.length})
           </Text>
         </TouchableOpacity>
         <TouchableOpacity
@@ -339,16 +360,26 @@ export default function SchoolsContent() {
           onPress={() => setActiveTab('districts')}
         >
           <Text style={[styles.segmentText, activeTab === 'districts' && styles.activeSegmentText]}>
-            Districts ({districts.length})
+            Districts ({filteredDistricts.length})
           </Text>
         </TouchableOpacity>
+      </View>
+
+      <View style={styles.searchContainer}>
+        <TextInput
+          style={styles.searchInput}
+          placeholder={activeTab === 'schools' ? "🔍 Search schools by name, district, or city..." : "🔍 Search districts by name or client..."}
+          value={searchQuery}
+          onChangeText={setSearchQuery}
+          clearButtonMode="while-editing"
+        />
       </View>
 
       {/* Districts View */}
       {activeTab === 'districts' && (
         <>
           <FlatList
-            data={districts}
+            data={filteredDistricts}
             keyExtractor={(item) => item._id}
             renderItem={renderDistrict}
             contentContainerStyle={styles.listContent}
@@ -369,7 +400,7 @@ export default function SchoolsContent() {
       {activeTab === 'schools' && (
         <>
           <FlatList
-            data={schools}
+            data={filteredSchools}
             keyExtractor={(item) => item._id}
             renderItem={renderSchool}
             contentContainerStyle={styles.listContent}
@@ -584,6 +615,21 @@ const styles = StyleSheet.create({
     marginTop: 12,
     fontSize: 16,
     color: '#666',
+  },
+  searchContainer: {
+    paddingHorizontal: 16,
+    paddingTop: 12,
+    paddingBottom: 4,
+    backgroundColor: '#F5F5F5',
+  },
+  searchInput: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    fontSize: 16,
+    borderWidth: 1,
+    borderColor: '#E0E0E0',
   },
   segmentedControl: {
     flexDirection: 'row',

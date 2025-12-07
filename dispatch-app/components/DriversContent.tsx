@@ -7,6 +7,7 @@ import { Id } from '../convex/_generated/dataModel';
 // Define a type for the driver object for clarity
 type Driver = {
   _id: Id<"drivers">;
+  employeeId?: string;
   firstName: string;
   lastName: string;
   email: string;
@@ -58,6 +59,19 @@ export default function DriversContent() {
     licenseZipCode: '',
   });
   const [isAdding, setIsAdding] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
+
+  // Filter drivers based on search query
+  const filteredDrivers = drivers?.filter(driver => {
+    const query = searchQuery.toLowerCase();
+    return (
+      driver.firstName.toLowerCase().includes(query) ||
+      driver.lastName.toLowerCase().includes(query) ||
+      driver.email.toLowerCase().includes(query) ||
+      driver.phone.includes(query) ||
+      (driver.employeeId && driver.employeeId.toLowerCase().includes(query))
+    );
+  });
 
   const handleSubmit = async () => {
     if (!newDriver.employeeId || !newDriver.firstName || !newDriver.lastName || !newDriver.email || !newDriver.phone) {
@@ -244,11 +258,21 @@ export default function DriversContent() {
         </TouchableOpacity>
       </View>
 
+      <View style={styles.searchContainer}>
+        <TextInput
+          style={styles.searchInput}
+          placeholder="🔍 Search drivers by name, email, or phone..."
+          value={searchQuery}
+          onChangeText={setSearchQuery}
+          clearButtonMode="while-editing"
+        />
+      </View>
+
       {drivers === undefined ? (
         <ActivityIndicator size="large" color="#2196F3" style={{ marginTop: 20 }}/>
       ) : (
         <FlatList
-          data={drivers}
+          data={filteredDrivers}
           renderItem={renderDriver}
           keyExtractor={(item) => item._id}
           contentContainerStyle={styles.listContainer}
@@ -540,6 +564,21 @@ const styles = StyleSheet.create({
     fontSize: 24,
     fontWeight: 'bold',
     color: '#333',
+  },
+  searchContainer: {
+    paddingHorizontal: 16,
+    paddingTop: 12,
+    paddingBottom: 4,
+    backgroundColor: '#F5F5F5',
+  },
+  searchInput: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    fontSize: 16,
+    borderWidth: 1,
+    borderColor: '#E0E0E0',
   },
   addButton: {
     backgroundColor: '#2196F3',

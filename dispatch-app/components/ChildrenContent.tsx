@@ -72,6 +72,18 @@ export default function ChildrenContent() {
   const [editingChild, setEditingChild] = useState<Child | null>(null);
   const [newChild, setNewChild] = useState(getInitialChildState());
   const [isAdding, setIsAdding] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
+
+  // Filter children based on search query
+  const filteredChildren = children?.filter(child => {
+    const query = searchQuery.toLowerCase();
+    return (
+      child.firstName.toLowerCase().includes(query) ||
+      child.lastName.toLowerCase().includes(query) ||
+      child.schoolName.toLowerCase().includes(query) ||
+      child.grade.toLowerCase().includes(query)
+    );
+  });
 
   const handleSubmit = async () => {
     if (!newChild.firstName || !newChild.lastName || !newChild.grade || !newChild.schoolName) {
@@ -225,11 +237,21 @@ export default function ChildrenContent() {
         </TouchableOpacity>
       </View>
 
+      <View style={styles.searchContainer}>
+        <TextInput
+          style={styles.searchInput}
+          placeholder="🔍 Search children, school, or grade..."
+          value={searchQuery}
+          onChangeText={setSearchQuery}
+          clearButtonMode="while-editing"
+        />
+      </View>
+
       {children === undefined ? (
         <ActivityIndicator size="large" color="#2196F3" style={{ marginTop: 20 }}/>
       ) : (
         <FlatList
-          data={children}
+          data={filteredChildren}
           renderItem={renderChild}
           keyExtractor={(item) => item._id}
           contentContainerStyle={styles.listContainer}
@@ -578,6 +600,21 @@ const styles = StyleSheet.create({
     fontSize: 24,
     fontWeight: 'bold',
     color: '#333',
+  },
+  searchContainer: {
+    paddingHorizontal: 16,
+    paddingTop: 12,
+    paddingBottom: 4,
+    backgroundColor: '#F5F5F5',
+  },
+  searchInput: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    fontSize: 16,
+    borderWidth: 1,
+    borderColor: '#E0E0E0',
   },
   addButton: {
     backgroundColor: '#2196F3',
