@@ -292,3 +292,41 @@ export const toggleOnHold = mutation({
     };
   },
 });
+
+/**
+ * Add a driver directly without Clerk (for data migration).
+ * clerkId will be set later when the driver registers in Driver App.
+ */
+export const addDriverDirect = mutation({
+  args: {
+    firstName: v.string(),
+    lastName: v.string(),
+    middleName: v.optional(v.string()),
+    email: v.string(),
+    phone: v.string(),
+    address: v.optional(v.object({
+      street: v.string(),
+      street2: v.optional(v.string()),
+      city: v.string(),
+      state: v.string(),
+      zip: v.string(),
+    })),
+    dateOfBirth: v.optional(v.string()),
+    startDate: v.optional(v.string()),
+  },
+  handler: async (ctx, args) => {
+    const employeeId = `D-${String(Date.now()).slice(-6)}`;
+
+    const driverId = await ctx.db.insert("drivers", {
+      ...args,
+      employeeId,
+      role: "driver",
+      status: "active",
+      active: true,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    });
+
+    return { driverId, employeeId };
+  },
+});

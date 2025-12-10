@@ -385,3 +385,83 @@ export function useCopyFromLastValidDay() {
  * Mutations
  */
 
+// =============================================================================
+// CRM Contacts Management
+// =============================================================================
+
+/**
+ * Get all CRM contacts with optional label filter
+ */
+export function useCrmContacts(label?: string) {
+  return useQuery(api.crm.list, label ? { label } : {});
+}
+
+/**
+ * Get CRM contact statistics
+ */
+export function useCrmStats() {
+  return useQuery(api.crm.getStats);
+}
+
+/**
+ * Get all labels with counts
+ */
+export function useCrmLabels() {
+  return useQuery(api.crm.getLabels);
+}
+
+/**
+ * Search CRM contacts by name/email/phone with optional label filter
+ */
+export function useCrmSearch(searchTerm: string, label?: string) {
+  return useQuery(
+    api.crm.search,
+    searchTerm ? { searchTerm, ...(label && { label }) } : "skip"
+  );
+}
+
+/**
+ * Get CRM contact details by ID
+ */
+export function useCrmContactById(id: string | undefined) {
+  return useQuery(
+    api.crm.getById,
+    id ? { id: id as Id<"crmContacts"> } : "skip"
+  );
+}
+
+/**
+ * Create a new CRM contact
+ */
+export function useCreateCrmContact() {
+  return useMutation(api.crm.create);
+}
+
+/**
+ * Update a CRM contact
+ */
+export function useUpdateCrmContact() {
+  return useMutation(api.crm.update);
+}
+
+/**
+ * Deactivate (soft delete) a CRM contact
+ */
+export function useDeactivateCrmContact() {
+  return useMutation(api.crm.deactivate);
+}
+
+/**
+ * Clear all CRM contacts (for re-import)
+ */
+export function useClearCrmContacts() {
+  return useMutation(api.crm.clearAll);
+}
+
+/**
+ * Bulk create CRM contacts
+ */
+export function useBulkCreateCrmContacts() {
+  return useMutation(api.crm.bulkCreate);
+}
+

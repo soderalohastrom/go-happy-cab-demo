@@ -1065,6 +1065,62 @@ export default defineSchema({
     .index("by_parent", ["linkedParentId"])
     .index("by_driver", ["linkedDriverId"]),
 
+  // ============================================================================
+  // CRM CONTACTS - Global Contact Directory
+  // Added: December 9, 2025
+  // Purpose: Free-form contact directory (like Google Contacts)
+  // NOT tied to dispatch operations - her digital Rolodex
+  // ============================================================================
+
+  /**
+   * CRM Contacts - Global contact directory
+   *
+   * A free-form contact list imported from Google Contacts.
+   * Can include anyone: drivers, parents, dog walker, dentist, vendors, etc.
+   * Labels are the primary organization method (matching Google Contacts UX).
+   *
+   * This is SEPARATE from operational data (children, drivers, schools).
+   * Operational screens are for dispatch-critical data.
+   * This is for "I need to look up a phone number without leaving the app."
+   */
+  crmContacts: defineTable({
+    // Core identity (mirrors Google Contacts fields)
+    firstName: v.optional(v.string()),
+    lastName: v.optional(v.string()),
+    middleName: v.optional(v.string()),
+    organizationName: v.optional(v.string()),  // "Job title & company" in Google
+    organizationTitle: v.optional(v.string()), // Job title
+    organizationDepartment: v.optional(v.string()),
+
+    // Contact info
+    email: v.optional(v.string()),
+    phone: v.optional(v.string()),
+    alternatePhone: v.optional(v.string()),
+    address: v.optional(v.string()), // Full formatted address as string
+
+    // Labels - PRIMARY organization (like Google Contacts)
+    labels: v.array(v.string()),
+
+    // Notes
+    notes: v.optional(v.string()),
+
+    // Import metadata
+    source: v.string(), // "google_contacts_import", "manual_entry"
+    sourceRowId: v.optional(v.string()), // Row reference for dedup on re-import
+
+    // Timestamps
+    createdAt: v.string(),
+    updatedAt: v.string(),
+    isActive: v.boolean(),
+  })
+    .index("by_active", ["isActive"])
+    .index("by_email", ["email"])
+    .index("by_phone", ["phone"])
+    .searchIndex("search_name", {
+      searchField: "firstName",
+      filterFields: ["isActive"],
+    }),
+
   /**
    * SMS Campaigns - Bulk messaging campaigns
    * For sending same message to multiple recipients

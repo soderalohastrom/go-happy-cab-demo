@@ -4,6 +4,43 @@ Append-only session log. Each session adds an entry at the top.
 
 ---
 
+## 2025-12-09 — Claude Code Session
+
+### CRM Global Contacts Import — ON HOLD
+
+**Goal:** Import ~1,000 Google Contacts into standalone `crmContacts` table (separate from dispatch ops)
+
+**Completed:**
+- Simplified `crmContacts` schema (removed `category`, kept Labels-based organization)
+- Created `scripts/import-csv-contacts.cjs` for CSV-based import
+- Created `scripts/import-google-contacts.js` for stdin JSON approach
+- Analyzed CSV data quality: 967 valid contacts out of 1,119 rows (86.4%)
+- Created documentation: `CATHEY_GLOBAL_IMPORT_OVERVIEW.md`
+
+**Blockers:**
+- `crmImport:bulkCreate` mutation uses old schema (needs update)
+- User requested hold pending cleaned/scrubbed CSV
+
+**Files Created:**
+- `CATHEY_GLOBAL_IMPORT_OVERVIEW.md` - Complete import documentation
+- `scripts/import-csv-contacts.cjs` - CSV import script
+- `scripts/import-google-contacts.js` - JSON stdin import script
+- `convex/crmImport.ts` - Import mutations (needs schema alignment)
+- `convex/crm.ts` - CRUD operations for CRM contacts
+- `dispatch-app/components/CrmContactsContent.tsx` - Table view with Labels filter
+
+**Critical Separation:**
+- CRM writes ONLY to `crmContacts` table
+- Dispatch tables (`drivers`, `children`, `schools`) remain untouched
+- User explicitly concerned about data safety — separation is mandatory
+
+**Next Session (when user provides cleaned CSV):**
+1. Update `CSV_FILE` path in import script
+2. Align `crmImport:bulkCreate` mutation with simplified schema
+3. Run import and verify in UI
+
+---
+
 ## 2025-12-06 — Claude Code Session
 
 ### Completed: On Hold / Hide Toggle Feature (FULL IMPLEMENTATION)

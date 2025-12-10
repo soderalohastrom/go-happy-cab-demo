@@ -19,7 +19,40 @@ export const getById = internalQuery({
     },
 });
 
-import { internalMutation } from "./_generated/server";
+import { internalMutation, mutation } from "./_generated/server";
+
+// Delete all routes for a specific date (used for cleanup before fresh copy)
+export const deleteRoutesForDate = mutation({
+    args: { date: v.string() },
+    handler: async (ctx, args) => {
+        const amRoutes = await ctx.db
+            .query("routes")
+            .withIndex("by_date_period", (q) =>
+                q.eq("date", args.date).eq("period", "AM")
+            )
+            .collect();
+
+        const pmRoutes = await ctx.db
+            .query("routes")
+            .withIndex("by_date_period", (q) =>
+                q.eq("date", args.date).eq("period", "PM")
+            )
+            .collect();
+
+        const allRoutes = [...amRoutes, ...pmRoutes];
+
+        for (const route of allRoutes) {
+            await ctx.db.delete(route._id);
+        }
+
+        return {
+            deleted: allRoutes.length,
+            amDeleted: amRoutes.length,
+            pmDeleted: pmRoutes.length,
+            message: `Deleted ${allRoutes.length} routes for ${args.date}`,
+        };
+    },
+});
 
 // Helper internal mutation to create a route
 export const createRoute = internalMutation({

@@ -169,6 +169,55 @@ export const update = mutation({
 });
 
 /**
+ * Create a new child with parent information (for data migration).
+ * Returns the created child ID and studentId.
+ */
+export const createWithParents = mutation({
+  args: {
+    firstName: v.string(),
+    lastName: v.string(),
+    grade: v.string(),
+    schoolName: v.string(),
+    dateOfBirth: v.optional(v.string()),
+    homeLanguage: v.optional(v.string()),
+    rideType: v.optional(v.string()),
+    studentId: v.optional(v.string()),
+    parent1: v.optional(v.object({
+      firstName: v.string(),
+      lastName: v.string(),
+      phone: v.string(),
+    })),
+    parent2: v.optional(v.object({
+      firstName: v.string(),
+      lastName: v.string(),
+      phone: v.string(),
+    })),
+  },
+  handler: async (ctx, args) => {
+    const studentId = args.studentId || `S-${String(Date.now()).slice(-6)}`;
+    const dateOfBirth = args.dateOfBirth || "2010-01-01";
+
+    const childId = await ctx.db.insert("children", {
+      firstName: args.firstName,
+      lastName: args.lastName,
+      grade: args.grade,
+      schoolName: args.schoolName,
+      dateOfBirth,
+      studentId,
+      homeLanguage: args.homeLanguage,
+      rideType: args.rideType,
+      parent1: args.parent1,
+      parent2: args.parent2,
+      active: true,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    });
+
+    return { childId, studentId };
+  },
+});
+
+/**
  * Toggle On Hold status for a child.
  * When on hold, child is hidden from dispatch assignment pool but remains visible in Children tab.
  */

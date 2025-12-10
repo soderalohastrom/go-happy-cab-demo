@@ -2,6 +2,7 @@
   "project": "go-happy-cab-demo",
   "description": "Go Happy Cab Dispatch System - Task Tracking",
   "created": "2025-12-05",
+  "updated": "2025-12-09",
   "features": [
     {
       "id": "on-hold-children-schema",
@@ -91,6 +92,21 @@
         "Past assignments remain unchanged"
       ],
       "passes": false
+    },
+    {
+      "id": "crm-global-contacts-import",
+      "description": "Import Google Contacts into standalone crmContacts table",
+      "acceptance": [
+        "crmContacts schema simplified (Labels-based, no category)",
+        "Import script created and tested locally",
+        "CSV data quality analyzed (~967 valid contacts)",
+        "Documentation created (CATHEY_GLOBAL_IMPORT_OVERVIEW.md)",
+        "Contacts imported to crmContacts table",
+        "CRM UI displays contacts with Labels filter"
+      ],
+      "passes": false,
+      "status": "on-hold",
+      "notes": "Awaiting cleaned CSV from user. Schema needs alignment with bulkCreate mutation."
     }
   ]
 }
