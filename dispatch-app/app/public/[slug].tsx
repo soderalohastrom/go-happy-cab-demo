@@ -111,6 +111,12 @@ export default function PublicDispatchPage() {
               border-bottom: 2px solid #000 !important;
             }
           }
+          /* Hide print button on mobile devices (portrait phones) */
+          @media screen and (max-width: 768px) {
+            [data-responsive="desktop-only"] {
+              display: none !important;
+            }
+          }
         `}</style>
       )}
 
@@ -152,7 +158,7 @@ export default function PublicDispatchPage() {
               <TouchableOpacity 
                 style={styles.printButton} 
                 onPress={handlePrint}
-                dataSet={{ print: "hide" }} // Hide this button when printing
+                dataSet={{ print: "hide", responsive: "desktop-only" }} // Hide on print AND mobile
               >
                 <Ionicons name="print-outline" size={20} color="#374151" />
                 <Text style={styles.printButtonText}>Print</Text>
