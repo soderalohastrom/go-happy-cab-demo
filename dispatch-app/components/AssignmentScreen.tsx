@@ -44,7 +44,7 @@ interface AssignmentScreenProps {
 
 export default function AssignmentScreen({ date }: AssignmentScreenProps) {
   const [activePeriod, setActivePeriod] = useState<'AM' | 'PM'>('AM');
-  const [sortBy, setSortBy] = useState<'child' | 'driver'>('child');
+  const [sortBy, setSortBy] = useState<'child' | 'driver'>('driver');
   const wrapperRef = useRef<View>(null);
   const [wrapperOffsetY, setWrapperOffsetY] = useState(0);
 
@@ -825,21 +825,14 @@ export default function AssignmentScreen({ date }: AssignmentScreenProps) {
                 </View>
               );
             } else {
-              // SINGLE ROUTE: Show as stacked card (child above driver)
+              // SINGLE ROUTE: Show as stacked card (driver on top, child below)
               const route = firstRoute;
               return (
                 <View key={route._id} style={styles.routeCard}>
                   <View style={styles.routeInfo}>
-                    {/* Stacked layout for single pairings */}
+                    {/* Stacked layout for single pairings - driver on top */}
                     <View style={styles.singleRouteStack}>
-                      {/* Child row */}
-                      <View style={styles.singleRoutePerson}>
-                        <Text style={styles.personIcon}>👧</Text>
-                        <Text style={styles.singleRoutePersonName} numberOfLines={1}>
-                          {route.childName}
-                        </Text>
-                      </View>
-                      {/* Driver row */}
+                      {/* Driver row (on top) */}
                       <View style={styles.singleRoutePerson}>
                         <Text style={styles.personIcon}>🚗</Text>
                         <Text style={styles.singleRoutePersonName} numberOfLines={1}>
@@ -848,6 +841,13 @@ export default function AssignmentScreen({ date }: AssignmentScreenProps) {
                         {route.scheduledTime && (
                           <Text style={styles.singleRouteTime}>⏰ {route.scheduledTime}</Text>
                         )}
+                      </View>
+                      {/* Child row (below) */}
+                      <View style={styles.singleRoutePerson}>
+                        <Text style={styles.personIcon}>👧</Text>
+                        <Text style={styles.singleRoutePersonName} numberOfLines={1}>
+                          {route.childName}
+                        </Text>
                       </View>
                     </View>
 
