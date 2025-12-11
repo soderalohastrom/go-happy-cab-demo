@@ -1,5 +1,5 @@
 import React from 'react';
-import { View, Text, StyleSheet, ScrollView, ActivityIndicator, Image, Platform } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, ActivityIndicator, Image, Platform, TouchableOpacity } from 'react-native';
 import { useLocalSearchParams, Stack } from 'expo-router';
 import { useQuery } from 'convex/react';
 import { api } from '../../convex/_generated/api';
@@ -65,15 +65,62 @@ export default function PublicDispatchPage() {
   // Use explicit types in reduce callback
   const totalPassengers = manifest.assignments.reduce((sum: number, d: Assignment) => sum + d.children.length, 0);
 
+  const handlePrint = () => {
+    if (typeof window !== 'undefined') {
+      window.print();
+    }
+  };
+
   return (
     <View style={styles.container}>
+      {/* Print-specific styles using a standard HTML style tag for Web */}
+      {Platform.OS === 'web' && (
+        <style type="text/css">{`
+          @media print {
+            /* Hide non-essential elements */
+            [data-print="hide"] { 
+              display: none !important; 
+            }
+            /* Reset backgrounds */
+            body { 
+              background-color: #fff !important; 
+              -webkit-print-color-adjust: exact; 
+            }
+            /* Main container reset */
+            [data-print="container"] {
+              background-color: #fff !important;
+            }
+            /* Grid layout adjustments for print optimization */
+            [data-print="grid"] {
+              display: block !important; /* Fallback to block to help breaks */
+              width: 100% !important;
+            }
+            /* Card break avoidance */
+            [data-print="card"] {
+              break-inside: avoid !important;
+              page-break-inside: avoid !important;
+              margin-bottom: 16px;
+              width: 100% !important;
+              max-width: 100% !important;
+              border: 1px solid #ddd !important;
+              box-shadow: none !important;
+            }
+            /* Hide header background/shadow to save ink, keep logo */
+            [data-print="header"] {
+              shadow-none !important;
+              border-bottom: 2px solid #000 !important;
+            }
+          }
+        `}</style>
+      )}
+
       <Stack.Screen options={{ 
         title: `Dispatch: ${manifest.date} (${manifest.period})`,
-        headerShown: false // We build our own custom header for the web look
+        headerShown: false 
       }} />
 
-      {/* Header */}
-      <View style={styles.header}>
+      {/* @ts-ignore */}
+      <View style={styles.header} dataSet={{ print: "header" }}>
         <View style={styles.headerContent}>
           <View style={styles.brandRow}>
             <View style={styles.logoBox}>
@@ -87,24 +134,42 @@ export default function PublicDispatchPage() {
             </View>
           </View>
 
-          <View style={styles.statsRow}>
-            <View style={[styles.statBadge, styles.statBlue]}>
-              <Ionicons name="bus-outline" size={16} color="#1d4ed8" style={styles.statIcon} />
-              <Text style={styles.statTextBlue}>{totalDrivers} Drivers</Text>
+          <View style={styles.actionsRow}>
+             <View style={styles.statsRow}>
+              <View style={[styles.statBadge, styles.statBlue]}>
+                <Ionicons name="bus-outline" size={16} color="#1d4ed8" style={styles.statIcon} />
+                <Text style={styles.statTextBlue}>{totalDrivers} Drivers</Text>
+              </View>
+              <View style={[styles.statBadge, styles.statIndigo]}>
+                <Ionicons name="people-outline" size={16} color="#4338ca" style={styles.statIcon} />
+                <Text style={styles.statTextIndigo}>{totalPassengers} Riders</Text>
+              </View>
             </View>
-            <View style={[styles.statBadge, styles.statIndigo]}>
-              <Ionicons name="people-outline" size={16} color="#4338ca" style={styles.statIcon} />
-              <Text style={styles.statTextIndigo}>{totalPassengers} Riders</Text>
-            </View>
+            
+            {/* Print Button */}
+            {Platform.OS === 'web' && (
+              /* @ts-ignore */
+              <TouchableOpacity 
+                style={styles.printButton} 
+                onPress={handlePrint}
+                dataSet={{ print: "hide" }} // Hide this button when printing
+              >
+                <Ionicons name="print-outline" size={20} color="#374151" />
+                <Text style={styles.printButtonText}>Print</Text>
+              </TouchableOpacity>
+            )}
           </View>
         </View>
       </View>
 
       {/* Content Grid */}
-      <ScrollView contentContainerStyle={styles.scrollContent}>
-        <View style={styles.gridContainer}>
+      {/* @ts-ignore */}
+      <ScrollView contentContainerStyle={styles.scrollContent} dataSet={{ print: "container" }}>
+        {/* @ts-ignore */}
+        <View style={styles.gridContainer} dataSet={{ print: "grid" }}>
           {manifest.assignments.map((assignment: Assignment, index: number) => (
-            <View key={index} style={styles.gridItem}>
+            /* @ts-ignore */
+            <View key={index} style={styles.gridItem} dataSet={{ print: "card" }}>
               <PublicDriverCard 
                 driverName={assignment.driverName}
                 passengers={assignment.children}
@@ -203,6 +268,11 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     color: '#6b7280',
   },
+  actionsRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
   statsRow: {
     flexDirection: 'row',
     gap: 12,
@@ -236,6 +306,21 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     fontSize: 13,
   },
+  printButton: {
+    padding: 8,
+    borderRadius: 8,
+    backgroundColor: '#f3f4f6',
+    borderWidth: 1,
+    borderColor: '#e5e7eb',
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  printButtonText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#374151',
+  },
   scrollContent: {
     paddingVertical: 24,
     paddingHorizontal: 16,
@@ -251,11 +336,6 @@ const styles = StyleSheet.create({
   },
   gridItem: {
     width: '100%',
-    // Responsive breakpoints approximately handled by minWidth/maxWidth logic if needed
-    // standard RN doesn't support @media, so we use flexBasis or width
-    // For simplicity:
-    // Mobile: 100%
-    // Tablet/Desktop: ~350px
     maxWidth: 380,
     minWidth: 300,
     flexGrow: 1,
