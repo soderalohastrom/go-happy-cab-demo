@@ -155,7 +155,7 @@ export default function DriverChildReport() {
                 <View key={child.childId} style={styles.childRow}>
                   <Text style={styles.childName}>{child.childName}</Text>
                   <Text style={styles.childDetails}>
-                    {child.grade} • {child.schoolName}
+                    {child.grade ? `${child.grade} • ` : ''}{child.schoolName}
                   </Text>
                 </View>
               ))}

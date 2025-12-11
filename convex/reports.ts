@@ -69,12 +69,15 @@ export const getRoutesForDateRange = query({
       const child = await ctx.db.get(assignment.childId);
       if (!child) continue;
 
+      // Sanitize grade
+      const grade = (child.grade && child.grade !== "Unknown" && child.grade !== "N/A") ? child.grade : "";
+
       // Add child to driver's assignment list
       driverMap.get(driverKey)!.children.push({
         childId: assignment.childId,
         childName: `${child.firstName} ${child.lastName}`,
         schoolName: child.schoolName || "Unknown School",
-        grade: child.grade || "N/A",
+        grade,
       });
     }
 
@@ -138,10 +141,12 @@ export const getDistrictSchoolReport = query({
           districtName = district?.districtName || "Unknown District";
         }
 
+        const grade = (child.grade && child.grade !== "Unknown" && child.grade !== "N/A") ? child.grade : "";
+
         return {
           childId: assignment.childId,
           childName: `${child.firstName} ${child.lastName}`,
-          grade: child.grade || "N/A",
+          grade,
           schoolName,
           districtName,
           districtId: school?.districtId || "unknown",
