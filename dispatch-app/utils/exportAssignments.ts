@@ -1,3 +1,4 @@
+import { Platform } from "react-native";
 import * as Sharing from "expo-sharing";
 import * as FileSystem from "expo-file-system";
 
@@ -57,6 +58,19 @@ export const saveAndShareFile = async (
   mimeType: string = "text/plain"
 ): Promise<{ success: boolean; error?: string }> => {
   try {
+    if (Platform.OS === 'web') {
+      const blob = new Blob([content], { type: mimeType });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = filename;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+      return { success: true };
+    }
+
     // Create file path in cache directory
     const fileUri = `${FileSystem.cacheDirectory}${filename}`;
 
