@@ -92,16 +92,19 @@ export default function PublicDispatchPage() {
             }
             /* Grid layout adjustments for print optimization */
             [data-print="grid"] {
-              display: block !important; /* Fallback to block to help breaks */
+              display: grid !important;
+              grid-template-columns: repeat(2, 1fr) !important;
+              gap: 16px !important;
               width: 100% !important;
+              justify-content: center !important;
             }
             /* Card break avoidance */
             [data-print="card"] {
               break-inside: avoid !important;
               page-break-inside: avoid !important;
-              margin-bottom: 16px;
-              width: 100% !important;
-              max-width: 100% !important;
+              margin-bottom: 0 !important;
+              width: auto !important;
+              max-width: none !important;
               border: 1px solid #ddd !important;
               box-shadow: none !important;
             }
