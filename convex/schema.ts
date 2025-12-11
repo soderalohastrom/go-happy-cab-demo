@@ -788,6 +788,30 @@ export default defineSchema({
   })
     .index("by_date", ["date"]),
 
+  /**
+   * Public Manifests - Sanitized snapshots of daily dispatch
+   * ACCESSIBLE BY PUBLIC (Read-only) via capability URL (slug)
+   */
+  public_manifests: defineTable({
+    slug: v.string(),        // e.g., "2025-12-11-am" (unique URL key)
+    date: v.string(),        // YYYY-MM-DD
+    period: v.string(),      // "AM" or "PM"
+
+    // The simplified, sanitized payload for public view
+    assignments: v.array(v.object({
+      driverName: v.string(),
+      children: v.array(v.object({
+        childName: v.string(), // First Name + Last Initial
+        schoolName: v.string(),
+        grade: v.string(),
+      }))
+    })),
+
+    publishedAt: v.number(),
+    publishedBy: v.optional(v.string()), // User ID of publisher
+    viewCount: v.number(), // Track engagement
+  }).index("by_slug", ["slug"]),
+
   // ============================================================================
   // SCHOOLS & DISTRICTS - New for Schools Feature
   // ============================================================================
@@ -1234,12 +1258,12 @@ export default defineSchema({
     reviewedAt: v.optional(v.string()),
     reviewedBy: v.optional(v.string()),
     reviewNotes: v.optional(v.string()),
-    
+
     // === REQUEST DETAILS ===
     requestDate: v.string(),
     serviceStartDate: v.string(),
     durationOfRequest: v.optional(v.string()),
-    
+
     // === REQUESTOR INFO ===
     requestorName: v.string(),
     requestorTitle: v.optional(v.string()),
@@ -1253,7 +1277,7 @@ export default defineSchema({
     billingEmail: v.optional(v.string()),
     billingCode: v.optional(v.string()),
     districtName: v.string(),
-    
+
     // === RIDER/STUDENT INFO ===
     studentName: v.string(),
     dateOfBirth: v.string(),
@@ -1263,7 +1287,7 @@ export default defineSchema({
     address: v.string(),
     riderPrimaryLanguage: v.optional(v.string()),
     residencePrimaryLanguage: v.optional(v.string()),
-    
+
     // === RIDER STATUS FLAGS ===
     transportationInIEP: v.boolean(),
     residesWithParents: v.boolean(),
@@ -1271,7 +1295,7 @@ export default defineSchema({
     residesWithOther: v.boolean(),
     mckinneyVento: v.boolean(),
     residentialFacility: v.boolean(),
-    
+
     // === GUARDIAN INFO ===
     primaryGuardianName: v.optional(v.string()),
     primaryGuardianCell: v.optional(v.string()),
@@ -1288,7 +1312,7 @@ export default defineSchema({
     emergencyContactRelationship: v.optional(v.string()),
     guardiansResideWithRider: v.boolean(),
     guardianAddressIfNo: v.optional(v.string()),
-    
+
     // === TRANSPORTATION INFO ===
     amPickupLocation: v.optional(v.string()),
     amPickupTime: v.optional(v.string()),
@@ -1296,7 +1320,7 @@ export default defineSchema({
     dropOffWindow: v.optional(v.string()),
     bellTime: v.optional(v.string()),
     transportSpecialInstructions: v.optional(v.string()),
-    
+
     // === SCHOOL INFO ===
     schoolName: v.optional(v.string()),
     schoolAddress: v.optional(v.string()),
@@ -1307,7 +1331,7 @@ export default defineSchema({
     schoolSpecialInstructions: v.optional(v.string()),
     scheduleMTH: v.optional(v.string()),
     scheduleFri: v.optional(v.string()),
-    
+
     // === SCHOOL STAFF ===
     primaryTeacherName: v.optional(v.string()),
     primaryTeacherPhone: v.optional(v.string()),
@@ -1324,7 +1348,7 @@ export default defineSchema({
     classroomAideName: v.optional(v.string()),
     classroomAideCell: v.optional(v.string()),
     classroomAideEmail: v.optional(v.string()),
-    
+
     // === SPECIAL NEEDS FLAGS ===
     behavior: v.boolean(),
     behaviorPlanAttached: v.boolean(),
@@ -1366,10 +1390,10 @@ export default defineSchema({
     beforeAfterCare: v.boolean(),
     beforeAfterCareDetails: v.optional(v.string()),
     otherSpecialNeeds: v.optional(v.string()),
-    
+
     // === COMMENTS ===
     comments: v.optional(v.string()),
-    
+
     // === METADATA ===
     createdAt: v.string(),
     updatedAt: v.string(),

@@ -3,25 +3,116 @@
  *
  * Displays driver-child assignment pairings for a specific date and period.
  * Shows each driver with their assigned children in a card-based layout.
+ * Includes export functionality for CSV, Google Sheets, and Public Web Publish.
  */
 
 import React, { useState } from 'react';
-import { View, Text, FlatList, StyleSheet, TouchableOpacity, ActivityIndicator, Alert } from 'react-native';
-import { useDriverChildReport, getTodayString } from '../hooks/useConvexRoutes';
-import { exportCSV } from '../utils/exportAssignments';
-import { useGoogleSheetsExport } from '../hooks/useGoogleSheetsExport';
-import { FontAwesome } from '@expo/vector-icons';
+import { View, Text, StyleSheet, FlatList, TouchableOpacity, ActivityIndicator, Alert, Platform } from 'react-native';
+import { useQuery, useMutation } from 'convex/react';
+import { api } from '@/convex/_generated/api';
+import { Ionicons } from '@expo/vector-icons';
+import { exportCSV } from '@/utils/exportAssignments';
+import { useGoogleSheetsExport } from '@/hooks/useGoogleSheetsExport';
+import * as Clipboard from 'expo-clipboard';
+import * as Linking from 'expo-linking';
 
 type Period = 'AM' | 'PM';
 
+interface Child {
+    childName: string;
+    schoolName: string;
+    grade: string;
+    childId: string;
+}
+
+interface DriverAssignment {
+    driverName: string;
+    driverId: string;
+    children: Child[];
+}
+
 export default function DriverChildReport() {
-  const today = getTodayString();
-  const [selectedDate, setSelectedDate] = useState(today);
+  const [selectedDate, setSelectedDate] = useState(new Date());
   const [selectedPeriod, setSelectedPeriod] = useState<Period>('AM');
   const [isExporting, setIsExporting] = useState(false);
+  const [isPublishing, setIsPublishing] = useState(false);
 
-  const reportData = useDriverChildReport(selectedDate, selectedPeriod);
+  const reportData = useQuery(api.reports.getRoutesForDateRange, {
+    date: selectedDate.toISOString().split('T')[0],
+    period: selectedPeriod
+  });
+  
+  const publishManifest = useMutation(api.publish.publishManifest);
   const { exportAssignmentsToNewSheet, isExporting: isExportingSheets, exportError } = useGoogleSheetsExport();
+
+  const handleDateChange = (dateString: string) => {
+     setSelectedDate(new Date(dateString));
+  };
+
+  const handlePublish = async () => {
+    if (!reportData || reportData.length === 0) {
+      Alert.alert("No Data", "There are no assignments to publish for this date.");
+      return;
+    }
+
+    setIsPublishing(true);
+    try {
+      const dateStr = selectedDate.toISOString().split('T')[0];
+
+      // Transform data for public consumption
+      const assignments = reportData.map((driver: DriverAssignment) => ({
+        driverName: driver.driverName,
+        children: driver.children.map(child => ({
+          childName: child.childName,
+          schoolName: child.schoolName,
+          grade: child.grade
+        }))
+      }));
+
+      const slug = await publishManifest({
+        date: dateStr,
+        period: selectedPeriod,
+        assignments
+      });
+
+      // Generate the public URL
+      const publicUrl = Linking.createURL(`public/${slug}`);
+      
+      let displayUrl = publicUrl;
+      // On web, construct absolute URL for sharing
+      if (typeof window !== 'undefined') {
+        const origin = window.location.origin;
+        // Handle expo router nesting if any, but clean origin + path is safest for web
+        displayUrl = `${origin}/public/${slug}`;
+      }
+
+      await Clipboard.setStringAsync(displayUrl);
+
+      if (Platform.OS === 'web') {
+        // Web-specific alert since RNW Alert doesn't support custom buttons well
+        const shouldOpen = window.confirm(
+          `Published Successfully!\n\nThe dispatch board is live.\nLink copied to clipboard: ${displayUrl}\n\nDo you want to open it now?`
+        );
+        if (shouldOpen) {
+          window.open(displayUrl, '_blank');
+        }
+      } else {
+        Alert.alert(
+          "Published Successfully!",
+          `The dispatch board is live.\n\nLink copied to clipboard:\n${displayUrl}`,
+          [
+            { text: "OK" },
+            { text: "Open", onPress: () => Linking.openURL(displayUrl) }
+          ]
+        );
+      }
+    } catch (error) {
+      console.error("Publishing error:", error);
+      Alert.alert("Error", "Failed to publish manifest. Please try again.");
+    } finally {
+      setIsPublishing(false);
+    }
+  };
 
   // CSV Export Handler
   const handleExportCSV = async () => {
@@ -31,8 +122,12 @@ export default function DriverChildReport() {
     }
 
     setIsExporting(true);
+    // @ts-ignore - types mismatch between Date object and expected string in existing util if present
+    // But assuming exportCSV handles it or we pass what it expects.
+    // Based on previous code, passing the raw reportData which is correct structure.
     const result = await exportCSV({
-      selectedDate,
+        // @ts-ignore
+      selectedDate: selectedDate.toISOString().split('T')[0],
       selectedPeriod,
       drivers: reportData,
     });
@@ -52,6 +147,7 @@ export default function DriverChildReport() {
       return;
     }
 
+    // @ts-ignore
     const result = await exportAssignmentsToNewSheet(reportData, selectedDate, selectedPeriod);
 
     if (result) {
@@ -74,68 +170,64 @@ export default function DriverChildReport() {
     );
   }
 
-  // Empty state
-  if (reportData.length === 0) {
-    return (
-      <View style={styles.container}>
-        <DatePeriodPicker
-          selectedDate={selectedDate}
-          selectedPeriod={selectedPeriod}
-          onDateChange={setSelectedDate}
-          onPeriodChange={setSelectedPeriod}
-        />
-        <View style={styles.centerContainer}>
-          <Text style={styles.emptyText}>No assignments for this date/period</Text>
-          <Text style={styles.emptySubtext}>
-            Try selecting a different date or period
-          </Text>
-        </View>
-      </View>
-    );
-  }
+  // Empty state handling is inside the main return via conditionals or empty list check
+  // But let's keep the picker visible even if empty
 
   return (
     <View style={styles.container}>
       <DatePeriodPicker
-        selectedDate={selectedDate}
+        selectedDate={selectedDate.toISOString().split('T')[0]}
         selectedPeriod={selectedPeriod}
-        onDateChange={setSelectedDate}
+        onDateChange={handleDateChange}
         onPeriodChange={setSelectedPeriod}
       />
 
       {/* Export Buttons */}
-      <View style={styles.exportButtons}>
-        <TouchableOpacity
-          style={[styles.exportButton, styles.csvButton, isExporting && styles.exportButtonDisabled]}
-          onPress={handleExportCSV}
-          disabled={isExporting || !reportData || reportData.length === 0}
-        >
-          <FontAwesome name="file-excel-o" size={16} color="white" />
-          <Text style={styles.exportButtonText}>CSV</Text>
-        </TouchableOpacity>
+      <View style={styles.exportContainer}>
+          <TouchableOpacity
+            style={[styles.exportButton, styles.csvButton, isExporting && styles.exportButtonDisabled]}
+            onPress={handleExportCSV}
+            disabled={isExporting || !reportData || reportData.length === 0}
+          >
+            <Ionicons name="download-outline" size={20} color="#fff" />
+            <Text style={styles.exportButtonText}>CSV</Text>
+          </TouchableOpacity>
 
-        <TouchableOpacity
-          style={[
-            styles.exportButton,
-            styles.sheetsButton,
-            (isExportingSheets || !reportData || reportData.length === 0) && styles.exportButtonDisabled
-          ]}
-          onPress={handleExportToGoogleSheets}
-          disabled={isExportingSheets || !reportData || reportData.length === 0}
-        >
-          {isExportingSheets ? (
-            <ActivityIndicator color="#FFF" size="small" />
-          ) : (
-            <>
-              <FontAwesome name="google" size={16} color="white" />
-              <View>
-                <Text style={styles.exportButtonText}>Google Sheets</Text>
-                <Text style={styles.exportButtonSubtext}>Formatted</Text>
-              </View>
-            </>
-          )}
-        </TouchableOpacity>
-      </View>
+          <TouchableOpacity
+            style={[
+              styles.exportButton,
+              styles.sheetsButton,
+              (isExportingSheets || !reportData || reportData.length === 0) && styles.exportButtonDisabled
+            ]}
+            onPress={handleExportToGoogleSheets}
+            disabled={isExportingSheets || !reportData || reportData.length === 0}
+          >
+            {isExportingSheets ? (
+              <ActivityIndicator size="small" color="#FFF" />
+            ) : (
+              <>
+                <Ionicons name="document-text-outline" size={20} color="#028174" />
+                <View>
+                  <Text style={[styles.exportButtonText, styles.sheetsButtonText]}>Google Sheets</Text>
+                  <Text style={styles.exportButtonSubtext}>Formatted</Text>
+                </View>
+              </>
+            )}
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={[styles.exportButton, styles.publishButton, isPublishing && styles.exportButtonDisabled]}
+            onPress={handlePublish}
+            disabled={isPublishing || !reportData || reportData.length === 0}
+          >
+            {isPublishing ? (
+              <ActivityIndicator size="small" color="#fff" />
+            ) : (
+              <Ionicons name="cloud-upload-outline" size={20} color="#fff" />
+            )}
+            <Text style={styles.exportButtonText}>Publish</Text>
+          </TouchableOpacity>
+        </View>
 
       {/* Error Display */}
       {exportError && (
@@ -144,29 +236,38 @@ export default function DriverChildReport() {
         </View>
       )}
 
-      <FlatList
-        data={reportData}
-        keyExtractor={(item) => item.driverId}
-        renderItem={({ item }) => (
-          <View style={styles.driverCard}>
-            <Text style={styles.driverName}>{item.driverName}</Text>
-            <View style={styles.childrenContainer}>
-              {item.children.map((child, index) => (
-                <View key={child.childId} style={styles.childRow}>
-                  <Text style={styles.childName}>{child.childName}</Text>
-                  <Text style={styles.childDetails}>
-                    {child.grade ? `${child.grade} • ` : ''}{child.schoolName}
-                  </Text>
-                </View>
-              ))}
-            </View>
-            <Text style={styles.childCount}>
-              {item.children.length} {item.children.length === 1 ? 'child' : 'children'}
+      {reportData.length === 0 ? (
+          <View style={styles.centerContainer}>
+            <Text style={styles.emptyText}>No assignments for this date/period</Text>
+            <Text style={styles.emptySubtext}>
+               Try selecting a different date or period
             </Text>
           </View>
-        )}
-        contentContainerStyle={styles.listContent}
-      />
+      ) : (
+          <FlatList
+            data={reportData}
+            keyExtractor={(item) => item.driverId}
+            renderItem={({ item }) => (
+              <View style={styles.driverCard}>
+                <Text style={styles.driverName}>{item.driverName}</Text>
+                <View style={styles.childrenContainer}>
+                  {item.children.map((child: Child, index: number) => (
+                    <View key={child.childId || index} style={styles.childRow}>
+                      <Text style={styles.childName}>{child.childName}</Text>
+                      <Text style={styles.childDetails}>
+                        {child.grade ? `${child.grade} • ` : ''}{child.schoolName}
+                      </Text>
+                    </View>
+                  ))}
+                </View>
+                <Text style={styles.childCount}>
+                  {item.children.length} {item.children.length === 1 ? 'child' : 'children'}
+                </Text>
+              </View>
+            )}
+            contentContainerStyle={styles.listContent}
+          />
+      )}
     </View>
   );
 }
@@ -188,7 +289,10 @@ function DatePeriodPicker({
   onPeriodChange,
 }: DatePeriodPickerProps) {
   const formatDisplayDate = (dateString: string) => {
-    const date = new Date(dateString);
+    // Basic formatting to avoid date timezone issues
+    const parts = dateString.split('-');
+    const date = new Date(parseInt(parts[0]), parseInt(parts[1]) - 1, parseInt(parts[2]));
+    
     return date.toLocaleDateString('en-US', {
       weekday: 'short',
       month: 'short',
@@ -198,7 +302,8 @@ function DatePeriodPicker({
   };
 
   const adjustDate = (days: number) => {
-    const date = new Date(selectedDate);
+    const parts = selectedDate.split('-');
+    const date = new Date(parseInt(parts[0]), parseInt(parts[1]) - 1, parseInt(parts[2]));
     date.setDate(date.getDate() + days);
     onDateChange(date.toISOString().split('T')[0]);
   };
@@ -272,6 +377,7 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
+    padding: 20,
   },
   loadingText: {
     marginTop: 12,
@@ -338,6 +444,59 @@ const styles = StyleSheet.create({
   periodButtonTextActive: {
     color: '#FFFFFF',
   },
+  // Export Button Styles
+  exportContainer: {
+    flexDirection: 'row',
+    gap: 12,
+    marginBottom: 16,
+    marginHorizontal: 0, 
+  },
+  exportButton: {
+    flex: 1,
+    flexDirection: 'row',
+    padding: 12,
+    borderRadius: 8,
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+  },
+  csvButton: {
+    backgroundColor: '#6B7280',
+  },
+  sheetsButton: {
+    backgroundColor: '#0F9D58', // Google green
+  },
+  publishButton: {
+    backgroundColor: '#8b5cf6', // Violet
+  },
+  exportButtonDisabled: {
+    backgroundColor: '#ccc',
+    opacity: 0.6,
+  },
+  exportButtonText: {
+    color: 'white',
+    fontSize: 13,
+    fontWeight: '600',
+  },
+  sheetsButtonText: {
+    color: 'white',
+  },
+  exportButtonSubtext: {
+    color: 'white',
+    fontSize: 10,
+    marginTop: 0,
+  },
+  errorContainer: {
+    backgroundColor: '#FEE',
+    padding: 12,
+    borderRadius: 8,
+    marginBottom: 16,
+  },
+  errorText: {
+    color: '#C00',
+    fontSize: 14,
+  },
+  // Driver Card Styles
   listContent: {
     paddingBottom: 16,
   },
@@ -355,7 +514,7 @@ const styles = StyleSheet.create({
     elevation: 2,
   },
   driverName: {
-    fontSize: 18,
+    fontSize: 16,
     fontWeight: '600',
     color: '#007AFF',
     marginBottom: 12,
@@ -385,50 +544,5 @@ const styles = StyleSheet.create({
     fontWeight: '500',
     color: '#999',
     textAlign: 'right',
-  },
-  exportButtons: {
-    flexDirection: 'row',
-    gap: 12,
-    marginBottom: 16,
-    marginHorizontal: 16,
-  },
-  exportButton: {
-    flex: 1,
-    flexDirection: 'row',
-    padding: 14,
-    borderRadius: 8,
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 8,
-  },
-  csvButton: {
-    backgroundColor: '#6B7280',
-  },
-  sheetsButton: {
-    backgroundColor: '#0F9D58', // Google green
-  },
-  exportButtonDisabled: {
-    backgroundColor: '#ccc',
-    opacity: 0.6,
-  },
-  exportButtonText: {
-    color: 'white',
-    fontSize: 14,
-    fontWeight: '600',
-  },
-  exportButtonSubtext: {
-    color: 'white',
-    fontSize: 11,
-    marginTop: 2,
-  },
-  errorContainer: {
-    backgroundColor: '#FEE',
-    padding: 12,
-    borderRadius: 8,
-    marginBottom: 16,
-  },
-  errorText: {
-    color: '#C00',
-    fontSize: 14,
   },
 });

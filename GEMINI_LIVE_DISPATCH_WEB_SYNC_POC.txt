@@ -1,0 +1,399 @@
+import React, { useState, useEffect, useMemo } from 'react';
+import { Bus, User, MapPin, Search, Upload, Copy, Check, FileText } from 'lucide-react';
+
+// --- Mock Data ---
+const INITIAL_CSV_TEXT = `Driver Name,Child Name,Grade,School
+Aghanemom Mykarelly Vaz Dos Santos,Lachlan Gillard,,Anova Center
+Alexandre Magalhaes Nery,Helaina Matson,,Hill Education Center
+Alexandre Magalhaes Nery,Rex Goldstien,,Helix School
+Benhur Calixto De Quevedo,Alberth Lopez Contanza,,Davidson
+Benhur Calixto De Quevedo,Moses Radar,,San Jose Middle
+Camila Custodio de Oliveira,Aubrey Sanchez,,San Andreas
+Camila Custodio de Oliveira,Mae Sanford,,Redwood
+Daiane Cristina Dos Santos,Hansel Medrano,,San Rafael High School
+Daiane Cristina Dos Santos,Hunter Newton,,Hamilton School 8th Grade
+Daniel Silva,Will Sims,,Cypress School
+Deborah Thais De Souza Monteiro,Daniel Lee,,Hamilton School 6th
+Deborah Thais De Souza Monteiro,Mara Rosenblum,,Hamilton School 3rd Grade
+Deborah Thais De Souza Monteiro,Melanie Sontay Hernandez,,Hamilton School 3rd Grade
+DeMilton dos Santos Lima,Hudson Purdy,,Helix School
+Denis Campos,Avery Madrid,,Compass
+Denis Campos,Mateo Sanchez,,Helix School
+Denis Campos,Thomas Traeger,,Compass
+Evaldo Simao da Silva,"Casey ""Caz"" Schoenhoeft",,Oak Hill School
+Evaldo Simao da Silva,Jainagil Moore,,Lu Sutton
+Evelyn Lopez Hernandez,Cashis Compton,,Archie Williams
+Evelyn Lopez Hernandez,Milo Jaffee,,Archie Williams
+Evelyn Lopez Hernandez,Nicholas Debisschop,,Archie Williams
+Fabiano Nunes Carvalho,Ben Kernon,,Grant Grover
+Nayane Goncalves Menezes,Caroline Williams,,Redwood
+Nayane Goncalves Menezes,Siena Beckman,,Star Academy
+Neide Nogueira Marques Serafim,Asher Canessa,,Helix School
+Neide Nogueira Marques Serafim,Emma Mendoza Martinez,,Helix School
+Nikolaus Cotten,Carlos Perez Chiroy,,Bahia Vista
+Nikolaus Cotten,Curry Nguyen,,Bahia Vista
+Nikolaus Cotten,Dulcea Perez Chiroy,,Bahia Vista
+Nikolaus Cotten,Edwin Perez Terraza,,Bahia Vista
+Nikolaus Cotten,Ihan Camposeco,,Bahia Vista
+Nikolaus Cotten,Kimberly Soriano Vasquez,,Bahia Vista
+Renato Serafim,Autumn Dougherty,,Loma Verde Elementary
+Renato Serafim,Levi Goldberg,,Compass
+Renato Serafim,Shanti Mackay,,San Andreas
+Roberto De Araujo Justino,Riely Hurd,,Irene Hunt
+Roberto De Araujo Justino,Soren Fulvio,,Oak Hill School
+Rochael Rocha de Sousa,Brandon Beltran,,Grant Grover
+Rochael Rocha de Sousa,Skylar Pratt,,Redwood
+Scott Soderstrom,Astrid Vargus Lara,,Davidson
+Scott Soderstrom,Bathany Nguyen,,Davidson
+Teresa Anne Cotten,Ben Richard,,Redwood
+Teresa Anne Cotten,Jesse Shelley,,Archie Williams
+Teresa Anne Cotten,Kaiden McFarland,,Lynwood School
+Teresa Anne Cotten,Yolkin Martinez Sanchez,,Glenwood
+Thais Simoes Sarraff de Rezende,Tallulah Sansing,,Wellspring Ed Services`;
+
+// --- Helper: Simple CSV Parser to avoid external deps ---
+const parseCSV = (text) => {
+  const rows = [];
+  let row = [];
+  let col = '';
+  let insideQuote = false;
+  
+  // Normalize line endings
+  const cleanText = text.replace(/\r\n/g, '\n').replace(/\r/g, '\n');
+
+  for (let i = 0; i < cleanText.length; i++) {
+    const char = cleanText[i];
+    const nextChar = cleanText[i+1];
+    
+    if (char === '"') {
+      if (insideQuote && nextChar === '"') {
+        col += '"';
+        i++; // skip escaped quote
+      } else {
+        insideQuote = !insideQuote;
+      }
+    } else if (char === ',' && !insideQuote) {
+      row.push(col.trim());
+      col = '';
+    } else if (char === '\n' && !insideQuote) {
+      if (col.length > 0 || row.length > 0) row.push(col.trim());
+      if (row.length > 0) rows.push(row);
+      row = [];
+      col = '';
+    } else {
+      col += char;
+    }
+  }
+  // Flush last
+  if (col.length > 0 || row.length > 0) row.push(col.trim());
+  if (row.length > 0) rows.push(row);
+
+  if (rows.length === 0) return { data: [] };
+
+  const headers = rows[0];
+  const data = rows.slice(1).map(r => {
+    const obj = {};
+    headers.forEach((h, idx) => {
+      // Clean up quotes around headers if present
+      const key = h ? h.replace(/^"|"$/g, '') : `col_${idx}`;
+      obj[key] = r[idx] || '';
+    });
+    return obj;
+  });
+
+  return { data };
+};
+
+const DriverCard = ({ driverName, passengers }) => {
+    const [copied, setCopied] = useState(false);
+
+    const handleCopy = () => {
+        const text = `Ride Assignment for ${driverName}:\n` + 
+            passengers.map(p => `- ${p.child} (${p.school})`).join('\n');
+        
+        // React clipboard API
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+             navigator.clipboard.writeText(text).then(() => {
+                setCopied(true);
+                setTimeout(() => setCopied(false), 2000);
+             });
+        } else {
+            // Fallback
+            const textArea = document.createElement("textarea");
+            textArea.value = text;
+            document.body.appendChild(textArea);
+            textArea.select();
+            try {
+                document.execCommand('copy');
+                setCopied(true);
+                setTimeout(() => setCopied(false), 2000);
+            } catch (err) {
+                console.error('Fallback copy failed', err);
+            }
+            document.body.removeChild(textArea);
+        }
+    };
+
+    // Color coding based on capacity
+    const getCapacityColor = (count) => {
+        if(count >= 5) return "bg-purple-50 border-purple-200";
+        if(count >= 3) return "bg-blue-50 border-blue-100";
+        return "bg-white border-gray-200";
+    };
+
+    return (
+        <div className={`rounded-xl p-5 border shadow-sm hover:shadow-md transition-all duration-200 ${getCapacityColor(passengers.length)} flex flex-col gap-3 h-full`}>
+            <div className="flex justify-between items-start border-b border-black/5 pb-3">
+                <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-full bg-blue-600 flex items-center justify-center text-white shrink-0 shadow-sm">
+                        <Bus size={20} />
+                    </div>
+                    <div className="min-w-0">
+                        <h3 className="font-bold text-gray-800 text-lg leading-tight truncate">{driverName}</h3>
+                        <span className="text-xs font-bold text-gray-500 uppercase tracking-wider">{passengers.length} Passenger{passengers.length !== 1 ? 's' : ''}</span>
+                    </div>
+                </div>
+                <button 
+                    onClick={handleCopy}
+                    className={`p-2 rounded-lg transition-colors shrink-0 ${copied ? 'bg-green-100 text-green-700' : 'bg-white border border-gray-200 text-gray-500 hover:bg-gray-50 hover:text-blue-600'}`}
+                    title="Copy Manifest"
+                >
+                    {copied ? <Check size={16} /> : <Copy size={16} />}
+                </button>
+            </div>
+
+            <div className="flex-1 flex flex-col gap-2 mt-1">
+                {passengers.map((p, idx) => (
+                    <div key={idx} className="flex items-center justify-between p-2 rounded-lg bg-white border border-gray-100/80 shadow-sm">
+                        <div className="flex items-center gap-2 min-w-0">
+                            <div className="text-gray-400 shrink-0">
+                                <User size={14} />
+                            </div>
+                            <span className="font-medium text-gray-700 truncate text-sm">{p.child}</span>
+                        </div>
+                        {p.school && (
+                            <div className="flex items-center gap-1 bg-indigo-50 text-indigo-700 px-2 py-1 rounded text-[10px] font-bold uppercase tracking-wide max-w-[45%] shrink-0">
+                                <span className="truncate">{p.school}</span>
+                            </div>
+                        )}
+                    </div>
+                ))}
+            </div>
+        </div>
+    );
+};
+
+export default function App() {
+    const [parsedData, setParsedData] = useState([]);
+    const [searchTerm, setSearchTerm] = useState("");
+    const [dragActive, setDragActive] = useState(false);
+    const [fileName, setFileName] = useState("Default Data");
+
+    // Function to process raw CSV data
+    const processData = (results) => {
+        const rawRows = results.data;
+        if (!rawRows || rawRows.length === 0) return;
+
+        const grouped = {};
+
+        rawRows.forEach(row => {
+            // Flexible key matching
+            const driverKey = Object.keys(row).find(k => k.trim() === 'Driver Name');
+            const childKey = Object.keys(row).find(k => k.trim() === 'Child Name');
+            const schoolKey = Object.keys(row).find(k => k.trim() === 'School');
+
+            const driver = row[driverKey];
+            const child = row[childKey];
+            const school = row[schoolKey];
+
+            // Filter out garbage rows (empty driver or template text)
+            if (driver && child && driver !== 'Driver Name' && child !== 'Rider_FirstNm Rider_LastNm') {
+                if (!grouped[driver]) {
+                    grouped[driver] = [];
+                }
+                grouped[driver].push({ child, school });
+            }
+        });
+
+        // Convert object to array for sorting
+        const sortedDrivers = Object.keys(grouped).sort().map(driver => ({
+            driverName: driver,
+            passengers: grouped[driver].sort((a, b) => a.child.localeCompare(b.child))
+        }));
+
+        setParsedData(sortedDrivers);
+    };
+
+    // Load initial mock data on mount
+    useEffect(() => {
+        const results = parseCSV(INITIAL_CSV_TEXT);
+        processData(results);
+    }, []);
+
+    // File Upload Handlers
+    const handleDrag = (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        if (e.type === "dragenter" || e.type === "dragover") {
+            setDragActive(true);
+        } else if (e.type === "dragleave") {
+            setDragActive(false);
+        }
+    };
+
+    const handleDrop = (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        setDragActive(false);
+        if (e.dataTransfer.files && e.dataTransfer.files[0]) {
+            handleFile(e.dataTransfer.files[0]);
+        }
+    };
+
+    const handleFileChange = (e) => {
+        if (e.target.files && e.target.files[0]) {
+            handleFile(e.target.files[0]);
+        }
+    };
+
+    const handleFile = (file) => {
+        setFileName(file.name);
+        const reader = new FileReader();
+        reader.onload = (event) => {
+            const text = event.target.result;
+            const results = parseCSV(text);
+            processData(results);
+        };
+        reader.readAsText(file);
+    };
+
+    // Filter Logic
+    const filteredData = useMemo(() => {
+        if (!searchTerm) return parsedData;
+        const lowerSearch = searchTerm.toLowerCase();
+        
+        return parsedData.filter(group => {
+            const driverMatch = group.driverName.toLowerCase().includes(lowerSearch);
+            const passengerMatch = group.passengers.some(p => 
+                p.child.toLowerCase().includes(lowerSearch) || 
+                (p.school && p.school.toLowerCase().includes(lowerSearch))
+            );
+            return driverMatch || passengerMatch;
+        });
+    }, [parsedData, searchTerm]);
+
+    // Stats
+    const totalDrivers = parsedData.length;
+    const totalKids = parsedData.reduce((acc, curr) => acc + curr.passengers.length, 0);
+
+    return (
+        <div className="min-h-screen bg-[#f0f4f8] pb-20 font-sans text-gray-900">
+            {/* Header */}
+            <header className="bg-white border-b border-gray-200 sticky top-0 z-10 shadow-sm">
+                <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
+                    <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+                        <div className="flex items-center gap-3">
+                            <div className="bg-yellow-400 p-2 rounded-lg text-yellow-900 shadow-sm">
+                                <Bus size={24} /> 
+                            </div>
+                            <div>
+                                <h1 className="text-2xl font-bold text-gray-900 tracking-tight">Go Happy Rides</h1>
+                                <p className="text-sm text-gray-500 font-medium">Dispatch Dashboard</p>
+                            </div>
+                        </div>
+
+                        <div className="flex items-center gap-4 flex-1 md:justify-end">
+                            {/* Stats Pills */}
+                            <div className="hidden sm:flex gap-3">
+                                <div className="px-4 py-2 bg-blue-50 text-blue-700 rounded-lg text-sm font-bold border border-blue-100 flex items-center gap-2">
+                                    <Bus size={16} />
+                                    {totalDrivers} Drivers
+                                </div>
+                                <div className="px-4 py-2 bg-indigo-50 text-indigo-700 rounded-lg text-sm font-bold border border-indigo-100 flex items-center gap-2">
+                                    <User size={16} />
+                                    {totalKids} Riders
+                                </div>
+                            </div>
+
+                            {/* Search Bar */}
+                            <div className="relative w-full md:w-64">
+                                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-gray-400">
+                                    <Search size={16} />
+                                </div>
+                                <input
+                                    type="text"
+                                    placeholder="Search driver, kid, school..."
+                                    className="block w-full pl-10 pr-3 py-2 border border-gray-300 rounded-lg leading-5 bg-gray-50 placeholder-gray-500 focus:outline-none focus:bg-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500 sm:text-sm transition-all shadow-sm"
+                                    value={searchTerm}
+                                    onChange={(e) => setSearchTerm(e.target.value)}
+                                />
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </header>
+
+            {/* Main Content */}
+            <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+                
+                {/* File Upload Zone */}
+                <div 
+                    className={`mb-8 border-2 border-dashed rounded-xl p-8 text-center transition-all cursor-pointer group relative overflow-hidden ${dragActive ? 'border-blue-500 bg-blue-50' : 'border-gray-300 hover:border-blue-400 hover:bg-white bg-gray-50'}`}
+                    onDragEnter={handleDrag}
+                    onDragLeave={handleDrag}
+                    onDragOver={handleDrag}
+                    onDrop={handleDrop}
+                    onClick={() => document.getElementById('csvInput').click()}
+                >
+                    <input 
+                        type="file" 
+                        id="csvInput" 
+                        accept=".csv" 
+                        className="hidden" 
+                        onChange={handleFileChange}
+                    />
+                    <div className="flex flex-col items-center gap-3 text-gray-500 group-hover:text-blue-600 relative z-10">
+                        <div className={`p-3 rounded-full ${dragActive ? 'bg-blue-100' : 'bg-gray-200 group-hover:bg-blue-50'} transition-colors`}>
+                            <Upload size={24} />
+                        </div>
+                        <div>
+                            <span className="text-base font-bold block">
+                                {fileName === "Default Data" ? "Drop a new CSV file here" : `Current File: ${fileName}`}
+                            </span>
+                            <span className="text-sm opacity-70">
+                                {fileName === "Default Data" ? "or click to upload to update the board" : "Click or drag to replace"}
+                            </span>
+                        </div>
+                    </div>
+                </div>
+
+                {/* Grid */}
+                {filteredData.length > 0 ? (
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+                        {filteredData.map((group, idx) => (
+                            <DriverCard 
+                                key={idx} 
+                                driverName={group.driverName} 
+                                passengers={group.passengers} 
+                            />
+                        ))}
+                    </div>
+                ) : (
+                    <div className="text-center py-20 bg-white rounded-xl border border-gray-200 shadow-sm">
+                        <div className="inline-block p-4 rounded-full bg-gray-50 mb-4 text-gray-400">
+                             <Search size={32} />
+                        </div>
+                        <h3 className="text-lg font-medium text-gray-900">No results found</h3>
+                        <p className="text-gray-500 mt-1">Try adjusting your search terms or upload a different CSV.</p>
+                        <button 
+                            onClick={() => setSearchTerm('')}
+                            className="mt-4 px-4 py-2 text-sm font-medium text-blue-600 bg-blue-50 rounded-lg hover:bg-blue-100 transition-colors"
+                        >
+                            Clear Search
+                        </button>
+                    </div>
+                )}
+            </main>
+        </div>
+    );
+}
