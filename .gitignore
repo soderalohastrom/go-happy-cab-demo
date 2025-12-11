@@ -32,3 +32,4 @@ convex/*.js.map
 service_account.json
 stdout.txt
 stderr.txt
+.osgrep/server.json
