@@ -20,6 +20,7 @@ export interface AssignmentReportData {
       childName: string;
       grade: string;
       schoolName: string;
+      districtName?: string;
     }>;
   }>;
 }
@@ -32,12 +33,13 @@ export const generateCSV = (data: AssignmentReportData): string => {
   const { drivers } = data;
 
   // Header row
-  let csv = "Driver Name,Child Name,Grade,School\n";
+  let csv = "Driver Name,Driver ID,Child Name,Child ID,grade,School,District\n";
 
   // Data rows - one row per child
   drivers.forEach((driver) => {
     driver.children.forEach((child) => {
-      csv += `"${driver.driverName}","${child.childName}","${child.grade}","${child.schoolName}"\n`;
+      const district = child.districtName || "";
+      csv += `"${driver.driverName}","${driver.driverId}","${child.childName}","${child.childId}","${child.grade}","${child.schoolName}","${district}"\n`;
     });
   });
 

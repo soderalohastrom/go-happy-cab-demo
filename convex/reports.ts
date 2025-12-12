@@ -44,6 +44,7 @@ export const getRoutesForDateRange = query({
           childName: string;
           schoolName: string;
           grade: string;
+          districtName: string;
         }>;
       }
     >();
@@ -72,12 +73,27 @@ export const getRoutesForDateRange = query({
       // Sanitize grade
       const grade = (child.grade && child.grade !== "Unknown" && child.grade !== "N/A") ? child.grade : "";
 
+      // Resolve District
+      let districtName = "";
+      if (child.schoolName) {
+        const schools = await ctx.db
+          .query("schools")
+          .withIndex("by_school_name", (q) => q.eq("schoolName", child.schoolName!))
+          .collect();
+        const school = schools[0];
+        if (school) {
+          const district = await ctx.db.get(school.districtId);
+          districtName = district?.districtName || "";
+        }
+      }
+
       // Add child to driver's assignment list
       driverMap.get(driverKey)!.children.push({
         childId: assignment.childId,
         childName: `${child.firstName} ${child.lastName}`,
         schoolName: child.schoolName || "Unknown School",
         grade,
+        districtName,
       });
     }
 
