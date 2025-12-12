@@ -33,6 +33,15 @@ export const getRoutesForDateRange = query({
       )
       .collect();
 
+    // Track assigned IDs to filter later
+    const assignedDriverIds = new Set<string>();
+    const assignedChildIds = new Set<string>();
+
+    assignments.forEach(a => {
+      assignedDriverIds.add(a.driverId);
+      assignedChildIds.add(a.childId);
+    });
+
     // 2. Group assignments by driver
     const driverMap = new Map<
       string,
@@ -97,18 +106,71 @@ export const getRoutesForDateRange = query({
       });
     }
 
-    // 3. Convert map to sorted array
+    // 3. Convert map to sorted array (Assignments)
     const result = Array.from(driverMap.values());
-
-    // Sort drivers by name
     result.sort((a, b) => a.driverName.localeCompare(b.driverName));
-
-    // Sort children within each driver by name
     result.forEach((driver) => {
       driver.children.sort((a, b) => a.childName.localeCompare(b.childName));
     });
 
-    return result;
+    // 4. Fetch Unassigned Drivers
+    const allDrivers = await ctx.db.query("drivers")
+      .withIndex("by_active", q => q.eq("active", true))
+      .filter(q => q.not(q.eq(q.field("onHold"), true)))
+      .collect();
+
+    const unassignedDrivers = allDrivers
+      .filter(d => !assignedDriverIds.has(d._id))
+      .map(d => ({
+        driverId: d._id,
+        driverName: `${d.firstName} ${d.lastName}`,
+        // Add minimal empty fields to match CSV structure if needed, or handle in frontend
+        // For now just ID and Name
+      }))
+      .sort((a, b) => a.driverName.localeCompare(b.driverName));
+
+    // 5. Fetch Unassigned Children
+    const allChildren = await ctx.db.query("children")
+      .withIndex("by_active", q => q.eq("active", true))
+      .filter(q => q.not(q.eq(q.field("onHold"), true)))
+      .collect();
+
+    // Filter and enrich
+    const unassignedChildren = await Promise.all(
+      allChildren
+        .filter(c => !assignedChildIds.has(c._id))
+        .map(async (c) => {
+          let districtName = "";
+          if (c.schoolName) {
+            const schools = await ctx.db
+              .query("schools")
+              .withIndex("by_school_name", (q) => q.eq("schoolName", c.schoolName!))
+              .collect();
+            const school = schools[0];
+            if (school) {
+              const district = await ctx.db.get(school.districtId);
+              districtName = district?.districtName || "";
+            }
+          }
+          const grade = (c.grade && c.grade !== "Unknown" && c.grade !== "N/A") ? c.grade : "";
+
+          return {
+            childId: c._id,
+            childName: `${c.firstName} ${c.lastName}`,
+            schoolName: c.schoolName || "Unknown School",
+            grade,
+            districtName
+          };
+        })
+    );
+    // Sort
+    unassignedChildren.sort((a, b) => a.childName.localeCompare(b.childName));
+
+    return {
+      assignments: result,
+      unassignedDrivers,
+      unassignedChildren
+    };
   },
 });
 

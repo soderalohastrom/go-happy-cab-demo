@@ -42,6 +42,8 @@ export default function DriverChildReport() {
     date: selectedDate.toISOString().split('T')[0],
     period: selectedPeriod
   });
+
+  const assignments = reportData?.assignments || [];
   
   const publishManifest = useMutation(api.publish.publishManifest);
   const { exportAssignmentsToNewSheet, isExporting: isExportingSheets, exportError } = useGoogleSheetsExport();
@@ -51,7 +53,7 @@ export default function DriverChildReport() {
   };
 
   const handlePublish = async () => {
-    if (!reportData || reportData.length === 0) {
+    if (!assignments || assignments.length === 0) {
       Alert.alert("No Data", "There are no assignments to publish for this date.");
       return;
     }
@@ -61,7 +63,7 @@ export default function DriverChildReport() {
       const dateStr = selectedDate.toISOString().split('T')[0];
 
       // Transform data for public consumption
-      const assignments = reportData.map((driver: DriverAssignment) => ({
+      const publicData = assignments.map((driver: DriverAssignment) => ({
         driverName: driver.driverName,
         children: driver.children.map(child => ({
           childName: child.childName,
@@ -73,7 +75,7 @@ export default function DriverChildReport() {
       const slug = await publishManifest({
         date: dateStr,
         period: selectedPeriod,
-        assignments
+        assignments: publicData
       });
 
       // Generate the public URL
@@ -126,12 +128,12 @@ export default function DriverChildReport() {
     // @ts-ignore - types mismatch between Date object and expected string in existing util if present
     // But assuming exportCSV handles it or we pass what it expects.
     // Based on previous code, passing the raw reportData which is correct structure.
-    const result = await exportCSV({
-        // @ts-ignore
-      selectedDate: selectedDate.toISOString().split('T')[0],
+    // @ts-ignore
+    const result = await exportCSV(
+      reportData, // Pass full object including unassigned
+      selectedDate.toISOString().split('T')[0],
       selectedPeriod,
-      drivers: reportData,
-    });
+    );
     setIsExporting(false);
 
     if (result.success) {
@@ -143,13 +145,13 @@ export default function DriverChildReport() {
 
   // Google Sheets Export Handler
   const handleExportToGoogleSheets = async () => {
-    if (!reportData || reportData.length === 0) {
+    if (!assignments || assignments.length === 0) {
       Alert.alert('No Data', 'No assignments to export for this date/period');
       return;
     }
 
     // @ts-ignore
-    const result = await exportAssignmentsToNewSheet(reportData, selectedDate, selectedPeriod);
+    const result = await exportAssignmentsToNewSheet(assignments, selectedDate, selectedPeriod);
 
     if (result) {
       Alert.alert(
@@ -188,7 +190,7 @@ export default function DriverChildReport() {
           <TouchableOpacity
             style={[styles.exportButton, styles.csvButton, isExporting && styles.exportButtonDisabled]}
             onPress={handleExportCSV}
-            disabled={isExporting || !reportData || reportData.length === 0}
+            disabled={isExporting || !reportData}
           >
             <Ionicons name="download-outline" size={20} color="#fff" />
             <Text style={styles.exportButtonText}>CSV</Text>
@@ -198,10 +200,10 @@ export default function DriverChildReport() {
             style={[
               styles.exportButton,
               styles.sheetsButton,
-              (isExportingSheets || !reportData || reportData.length === 0) && styles.exportButtonDisabled
+              (isExportingSheets || !assignments || assignments.length === 0) && styles.exportButtonDisabled
             ]}
             onPress={handleExportToGoogleSheets}
-            disabled={isExportingSheets || !reportData || reportData.length === 0}
+            disabled={isExportingSheets || !assignments || assignments.length === 0}
           >
             {isExportingSheets ? (
               <ActivityIndicator size="small" color="#FFF" />
@@ -219,7 +221,7 @@ export default function DriverChildReport() {
           <TouchableOpacity
             style={[styles.exportButton, styles.publishButton, isPublishing && styles.exportButtonDisabled]}
             onPress={handlePublish}
-            disabled={isPublishing || !reportData || reportData.length === 0}
+            disabled={isPublishing || !assignments || assignments.length === 0}
           >
             {isPublishing ? (
               <ActivityIndicator size="small" color="#fff" />
@@ -237,7 +239,7 @@ export default function DriverChildReport() {
         </View>
       )}
 
-      {reportData.length === 0 ? (
+      {assignments.length === 0 ? (
           <View style={styles.centerContainer}>
             <Text style={styles.emptyText}>No assignments for this date/period</Text>
             <Text style={styles.emptySubtext}>
@@ -246,7 +248,7 @@ export default function DriverChildReport() {
           </View>
       ) : (
           <FlatList
-            data={reportData}
+            data={assignments}
             keyExtractor={(item) => item.driverId}
             renderItem={({ item }) => (
               <View style={styles.driverCard}>
